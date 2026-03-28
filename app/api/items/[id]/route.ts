@@ -26,8 +26,13 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       },
     })
     return NextResponse.json(item)
-  } catch {
-    return NextResponse.json({ error: 'Item not found' }, { status: 404 })
+  } catch (err) {
+    const isNotFound =
+      err instanceof Error && err.message.includes('Record to update not found')
+    if (isNotFound) {
+      return NextResponse.json({ error: 'Item not found' }, { status: 404 })
+    }
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
 
@@ -36,7 +41,12 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   try {
     await prisma.inventoryItem.delete({ where: { id } })
     return NextResponse.json({ success: true })
-  } catch {
-    return NextResponse.json({ error: 'Item not found' }, { status: 404 })
+  } catch (err) {
+    const isNotFound =
+      err instanceof Error && err.message.includes('Record to delete does not exist')
+    if (isNotFound) {
+      return NextResponse.json({ error: 'Item not found' }, { status: 404 })
+    }
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
