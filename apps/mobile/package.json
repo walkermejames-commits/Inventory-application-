@@ -1,0 +1,30 @@
+{
+  "name": "@door-in-four/mobile",
+  "version": "0.1.0",
+  "private": true,
+  "main": "index.ts",
+  "scripts": {
+    "dev": "expo start",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "echo 'mobile e2e tests should run in CI device farm'",
+    "lint": "echo 'lint not configured yet'",
+    "build": "echo 'build not configured for this package'"
+  },
+  "dependencies": {
+    "@door-in-four/pricing": "file:../../packages/pricing",
+    "@door-in-four/shared": "file:../../packages/shared",
+    "@react-navigation/native": "^6.1.18",
+    "expo": "^51.0.38",
+    "expo-image-picker": "^15.0.7",
+    "expo-status-bar": "~1.12.1",
+    "react": "18.2.0",
+    "react-native": "0.74.5",
+    "react-native-safe-area-context": "4.10.5",
+    "react-native-screens": "3.31.1",
+    "zustand": "^5.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.10",
+    "typescript": "^5.6.3"
+  }
+}

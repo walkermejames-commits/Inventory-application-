@@ -1,0 +1,33 @@
+{
+  "name": "door-in-four",
+  "private": true,
+  "version": "0.2.0",
+  "packageManager": "pnpm@9.15.4",
+  "engines": {
+    "node": ">=20.10.0"
+  },
+  "scripts": {
+    "preinstall": "node ./scripts/ensure-pnpm.mjs",
+    "install:corepack": "corepack enable && corepack prepare pnpm@9.15.4 --activate",
+    "install:npm-fallback": "npm install --workspaces --include-workspace-root",
+    "dev": "pnpm -r --parallel dev",
+    "dev:mobile": "pnpm --filter @door-in-four/mobile dev",
+    "dev:admin": "pnpm --filter @door-in-four/admin dev",
+    "dev:seller": "pnpm --filter @door-in-four/seller dev",
+    "build": "pnpm -r build",
+    "build:admin": "pnpm --filter @door-in-four/admin build",
+    "build:seller": "pnpm --filter @door-in-four/seller build",
+    "lint": "pnpm -r lint",
+    "test": "pnpm -r test",
+    "typecheck": "pnpm -r typecheck",
+    "db:migrate": "node packages/db/scripts/apply-migrations.mjs",
+    "db:seed": "node packages/db/seed/seed.mjs"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ]
+}

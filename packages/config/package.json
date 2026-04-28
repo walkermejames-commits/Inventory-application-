@@ -1,0 +1,15 @@
+{
+  "name": "@door-in-four/config",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "src/index.ts",
+  "dependencies": {
+    "zod": "^3.23.8"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "echo 'no tests in config'",
+    "lint": "echo 'lint not configured yet'",
+    "build": "echo 'build not configured for this package'"
+  }
+}

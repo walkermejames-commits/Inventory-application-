@@ -1,0 +1,37 @@
+import { NextResponse } from "next/server";
+import { isStatusTransitionAllowed } from "@door-in-four/shared";
+import { supabase } from "@/lib/server";
+
+export async function POST(request: Request, { params }: { params: { bookingId: string } }) {
+  const { toStatus, actorUserId, actorRole, note, metadata } = await request.json();
+  const { data: booking } = await supabase.from("bookings").select("status").eq("id", params.bookingId).single();
+  if (!booking) return NextResponse.json({ error: "Booking not found" }, { status: 404 });
+
+  if (!isStatusTransitionAllowed(booking.status, toStatus)) {
+    return NextResponse.json({ error: "Transition denied" }, { status: 400 });
+  }
+
+  await supabase.from("bookings").update({ status: toStatus }).eq("id", params.bookingId);
+  await supabase.from("status_events").insert({
+    booking_id: params.bookingId,
+    previous_status: booking.status,
+    new_status: toStatus,
+    actor_user_id: actorUserId,
+    actor_role: actorRole,
+    note,
+    metadata
+  });
+
+  if (actorRole === "admin") {
+    await supabase.from("audit_events").insert({
+      actor_user_id: actorUserId,
+      actor_role: actorRole,
+      action: "manual_status_override",
+      entity_type: "booking",
+      entity_id: params.bookingId,
+      metadata: { from: booking.status, to: toStatus, note, metadata }
+    });
+  }
+
+  return NextResponse.json({ success: true });
+}

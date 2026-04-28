@@ -1,0 +1,35 @@
+{
+  "files": [],
+  "references": [
+    {
+      "path": "packages/types"
+    },
+    {
+      "path": "packages/config"
+    },
+    {
+      "path": "packages/shared"
+    },
+    {
+      "path": "packages/pricing"
+    },
+    {
+      "path": "packages/db"
+    },
+    {
+      "path": "packages/ui"
+    },
+    {
+      "path": "apps/admin"
+    },
+    {
+      "path": "apps/seller"
+    },
+    {
+      "path": "apps/mobile"
+    }
+  ],
+  "compilerOptions": {
+    "composite": true
+  }
+}
