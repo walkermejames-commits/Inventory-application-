@@ -1,0 +1,12 @@
+{
+  "name": "@door-in-four/types",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "echo 'no tests in types'",
+    "lint": "echo 'lint not configured yet'",
+    "build": "echo 'build not configured for this package'"
+  }
+}

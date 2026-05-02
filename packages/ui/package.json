@@ -1,0 +1,12 @@
+{
+  "name": "@door-in-four/ui",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "echo 'ui package has no tests yet'",
+    "lint": "echo 'lint not configured yet'",
+    "build": "echo 'build not configured for this package'"
+  }
+}

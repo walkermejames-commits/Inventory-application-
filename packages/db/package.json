@@ -1,0 +1,16 @@
+{
+  "name": "@door-in-four/db",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "src/index.ts",
+  "dependencies": {
+    "@door-in-four/config": "file:../config",
+    "@supabase/supabase-js": "^2.46.1"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "echo 'db tests run from integration harness'",
+    "lint": "echo 'lint not configured yet'",
+    "build": "echo 'build not configured for this package'"
+  }
+}
