@@ -1,9 +1,7 @@
 {
   "version": 2,
-  "builds": [
-    {
-      "src": "apps/admin/package.json",
-      "use": "@vercel/next"
-    }
-  ]
+  "installCommand": "corepack enable && pnpm install",
+  "buildCommand": "pnpm --filter @door-in-four/admin build",
+  "outputDirectory": "apps/admin/.next",
+  "framework": "nextjs"
 }
