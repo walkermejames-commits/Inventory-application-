@@ -15,12 +15,10 @@ export async function POST(request: Request, context: RouteContext) {
   if (booking.payment_status !== "payment_pending" && booking.status !== "awaiting_payment") {
     return NextResponse.json({ error: "Price override only allowed before payment" }, { status: 400 });
   }
-
   await supabase
     .from("bookings")
     .update({ accepted_price: newAcceptedPrice, driver_payout_amount: Number(newAcceptedPrice) * 0.75 })
     .eq("id", bookingId);
-
   await supabase.from("audit_events").insert({
     actor_user_id: actorUserId,
     actor_role: "admin",
@@ -29,6 +27,5 @@ export async function POST(request: Request, context: RouteContext) {
     entity_id: bookingId,
     metadata: { oldPrice: booking.accepted_price, newPrice: newAcceptedPrice, reason }
   });
-
   return NextResponse.json({ success: true });
 }
