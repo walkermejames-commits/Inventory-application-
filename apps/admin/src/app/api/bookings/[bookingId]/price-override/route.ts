@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { supabase } from "../../../../../../../lib/server";
+import { supabase } from "../../../../../lib/server";
 
 type RouteContext = { params: Promise<{ bookingId: string }> };
 
@@ -31,6 +31,4 @@ export async function POST(request: Request, context: RouteContext) {
   });
 
   return NextResponse.json({ success: true });
-}
-
 }
