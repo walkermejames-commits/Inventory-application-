@@ -2,21 +2,20 @@ import { NextResponse } from "next/server";
 import { isStatusTransitionAllowed } from "@door-in-four/shared";
 import { supabase } from "@/lib/server";
 
-type RouteContext = {
-  params: Promise<{ bookingId: string }>;
-};
-
-export async function POST(request: Request, context: RouteContext) {
+export async function POST(
+  request: Request,
+  context: { params: Promise<{ bookingId: string }> }
+) {
   const { bookingId } = await context.params;
   const { toStatus, actorUserId, actorRole, note, metadata } = await request.json();
 
-  const { data: booking, error: bookingError } = await supabase
+  const { data: booking, error } = await supabase
     .from("bookings")
     .select("status")
     .eq("id", bookingId)
     .single();
 
-  if (bookingError || !booking) {
+  if (error || !booking) {
     return NextResponse.json({ error: "Booking not found" }, { status: 404 });
   }
 
