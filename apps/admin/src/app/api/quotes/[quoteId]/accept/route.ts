@@ -2,10 +2,29 @@ import { NextResponse } from "next/server";
 import { supabase } from "@/lib/server";
 import { generateCode, hashCode } from "@/lib/security";
 
-export async function POST(request: Request, { params }: { params: { quoteId: string } }) {
-  const { pickupContactId, deliveryAddressId, buyerId, scheduledCollectionStart, scheduledCollectionEnd } = await request.json();
-  const { data: quote } = await supabase.from("quotes").select("*").eq("id", params.quoteId).single();
+type RouteContext = {
+  params: Promise<{ quoteId: string }>;
+};
+
+export async function POST(request: Request, context: RouteContext) {
+  const { quoteId } = await context.params;
+
+  const {
+    pickupContactId,
+    deliveryAddressId,
+    buyerId,
+    scheduledCollectionStart,
+    scheduledCollectionEnd
+  } = await request.json();
+
+  const { data: quote } = await supabase
+    .from("quotes")
+    .select("*")
+    .eq("id", quoteId)
+    .single();
+
   if (!quote) return NextResponse.json({ error: "Quote not found" }, { status: 404 });
+
   if (new Date(quote.expires_at).getTime() <= Date.now()) {
     await supabase.from("quotes").update({ status: "quote_expired" }).eq("id", quote.id);
     return NextResponse.json({ error: "Quote expired" }, { status: 400 });
@@ -36,7 +55,11 @@ export async function POST(request: Request, { params }: { params: { quoteId: st
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
 
-  await supabase.from("quotes").update({ status: "accepted", accepted_at: new Date().toISOString() }).eq("id", quote.id);
+  await supabase
+    .from("quotes")
+    .update({ status: "accepted", accepted_at: new Date().toISOString() })
+    .eq("id", quote.id);
+
   await supabase.from("status_events").insert({
     booking_id: booking.id,
     new_status: "awaiting_payment",
