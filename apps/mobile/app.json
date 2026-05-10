@@ -1,0 +1,27 @@
+{
+  "expo": {
+    "name": "Door in Four Driver",
+    "slug": "door-in-four-driver",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "doorinfour",
+    "userInterfaceStyle": "dark",
+    "platforms": ["ios", "android"],
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "co.doorinfour.driver"
+    },
+    "android": {
+      "package": "co.doorinfour.driver",
+      "adaptiveIcon": {
+        "backgroundColor": "#070a18"
+      }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "door-in-four-driver-local"
+      }
+    }
+  }
+}
