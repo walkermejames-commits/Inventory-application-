@@ -2,9 +2,20 @@ import { NextResponse } from "next/server";
 import { stripe, supabase } from "@/lib/server";
 import { computeCancellationFee } from "@door-in-four/shared";
 
-export async function POST(request: Request, { params }: { params: { paymentId: string } }) {
+type RouteContext = {
+  params: Promise<{ paymentId: string }>;
+};
+
+export async function POST(request: Request, context: RouteContext) {
+  const { paymentId } = await context.params;
   const { amount, reason, actorUserId } = await request.json();
-  const { data: payment } = await supabase.from("payments").select("*, bookings(status)").eq("id", params.paymentId).single();
+
+  const { data: payment } = await supabase
+    .from("payments")
+    .select("*, bookings(status)")
+    .eq("id", paymentId)
+    .single();
+
   if (!payment) return NextResponse.json({ error: "Payment not found" }, { status: 404 });
 
   const cancellationFee = computeCancellationFee(payment.bookings.status, Number(payment.amount));
@@ -18,14 +29,17 @@ export async function POST(request: Request, { params }: { params: { paymentId: 
   });
 
   await supabase.from("refunds").insert({
-    payment_id: params.paymentId,
+    payment_id: paymentId,
     stripe_refund_id: refund.id,
     amount: refundAmount,
     reason: `${reason ?? "admin_refund"}; cancellation_fee=${cancellationFee}`,
     status: refund.status
   });
 
-  await supabase.from("payments").update({ status: refundAmount < payment.amount ? "partially_refunded" : "refunded" }).eq("id", params.paymentId);
+  await supabase
+    .from("payments")
+    .update({ status: refundAmount < payment.amount ? "partially_refunded" : "refunded" })
+    .eq("id", paymentId);
 
   await supabase.from("audit_events").insert({
     actor_user_id: actorUserId,
@@ -33,7 +47,11 @@ export async function POST(request: Request, { params }: { params: { paymentId: 
     action: "refund_issued",
     entity_type: "payment",
     entity_id: payment.id,
-    metadata: { refund_id: refund.id, refund_amount: refundAmount, cancellation_fee: cancellationFee }
+    metadata: {
+      refund_id: refund.id,
+      refund_amount: refundAmount,
+      cancellation_fee: cancellationFee
+    }
   });
 
   return NextResponse.json({ refundId: refund.id, refundAmount, cancellationFee });
