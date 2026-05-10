@@ -162,12 +162,12 @@ export default function QuoteForm() {
 
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="block">
-            <span className="text-sm font-bold text-slate-700">Pickup stairs</span>
-            <input type="number" min="0" value={pickupStairsFloors} onChange={(event) => setPickupStairsFloors(Number(event.target.value))} className="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none ring-violet-500 focus:ring-2" />
+            <span className="text-sm font-bold text-slate-700">Pickup flights of stairs</span>
+            <input type="number" min="0" max="4" value={pickupStairsFloors} onChange={(event) => setPickupStairsFloors(Number(event.target.value))} className="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none ring-violet-500 focus:ring-2" placeholder="0 to 4" />
           </label>
           <label className="block">
-            <span className="text-sm font-bold text-slate-700">Delivery stairs</span>
-            <input type="number" min="0" value={deliveryStairsFloors} onChange={(event) => setDeliveryStairsFloors(Number(event.target.value))} className="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none ring-violet-500 focus:ring-2" />
+            <span className="text-sm font-bold text-slate-700">Delivery flights of stairs</span>
+            <input type="number" min="0" max="4" value={deliveryStairsFloors} onChange={(event) => setDeliveryStairsFloors(Number(event.target.value))} className="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none ring-violet-500 focus:ring-2" placeholder="0 to 4" />
           </label>
         </div>
 
