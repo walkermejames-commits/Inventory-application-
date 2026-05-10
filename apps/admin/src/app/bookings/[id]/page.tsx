@@ -1,10 +1,16 @@
 import { supabase } from "@/lib/server";
 
-export default async function BookingDetailPage({ params }: { params: { id: string } }) {
+type PageProps = {
+  params: Promise<{ id: string }>;
+};
+
+export default async function BookingDetailPage({ params }: PageProps) {
+  const { id } = await params;
+
   const { data: booking } = await supabase
     .from("bookings")
     .select("*,quotes(*),pickup_contacts(*),delivery_addresses(*),payments(*),photos(*),status_events(*),admin_notes(*),disputes(*),audit_events(*)")
-    .eq("id", params.id)
+    .eq("id", id)
     .single();
 
   if (!booking) return <main className="p-8">Booking not found</main>;
