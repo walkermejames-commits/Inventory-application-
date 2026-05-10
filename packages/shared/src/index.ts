@@ -7,7 +7,7 @@ export const createSupabaseServerClient = (url: string, serviceKey: string) => c
 
 export const createStripeClient = (secretKey: string) =>
   new Stripe(secretKey, {
-    apiVersion: "2024-06-20"
+    apiVersion: "2025-02-24.acacia"
   });
 
 export const quoteRequestSchema = z.object({
