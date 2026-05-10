@@ -1,6 +1,6 @@
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
-import { stripe, env, supabase } from "@/lib/server";
+import { stripe, supabase } from "@/lib/server";
 import { shouldProcessWebhook } from "@door-in-four/shared";
 
 export async function POST(request: Request) {
@@ -15,7 +15,11 @@ export async function POST(request: Request) {
   let event;
 
   try {
-    event = stripe.webhooks.constructEvent(payload, signature, env.STRIPE_WEBHOOK_SECRET);
+    event = stripe.webhooks.constructEvent(
+      payload,
+      signature,
+      process.env.STRIPE_WEBHOOK_SECRET || ""
+    );
   } catch {
     return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
   }
@@ -33,12 +37,18 @@ export async function POST(request: Request) {
     if (shouldProcessWebhook(existing?.status, "paid")) {
       await supabase
         .from("payments")
-        .update({ status: "paid", stripe_charge_id: String(intent.latest_charge ?? "") })
+        .update({
+          status: "paid",
+          stripe_charge_id: String(intent.latest_charge ?? "")
+        })
         .eq("id", existing?.id);
 
       await supabase
         .from("bookings")
-        .update({ payment_status: "paid", status: "paid_awaiting_dispatch" })
+        .update({
+          payment_status: "paid",
+          status: "paid_awaiting_dispatch"
+        })
         .eq("id", bookingId);
 
       await supabase.from("status_events").insert({
@@ -54,7 +64,9 @@ export async function POST(request: Request) {
         action: "payment_confirmed",
         entity_type: "booking",
         entity_id: bookingId,
-        metadata: { stripe_payment_intent_id: intent.id }
+        metadata: {
+          stripe_payment_intent_id: intent.id
+        }
       });
     }
   }
