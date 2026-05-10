@@ -1,18 +1,11 @@
 import Link from "next/link";
-
-const itemTypes = [
-  "Small parcel",
-  "Medium box",
-  "Furniture item",
-  "Marketplace pickup",
-  "Van load"
-];
+import QuoteForm from "./QuoteForm";
 
 const steps = [
   "Tell us pickup and delivery postcodes",
   "Describe the item and access details",
   "Choose urgency and preferred time",
-  "Get a guide price and submit the request"
+  "Get a live price and create the booking quote"
 ];
 
 export default function GetAQuotePage() {
@@ -54,69 +47,7 @@ export default function GetAQuotePage() {
             </div>
           </div>
 
-          <div className="rounded-3xl border border-white/15 bg-white p-6 text-slate-950 shadow-2xl shadow-black/40">
-            <div className="mb-6">
-              <p className="text-sm font-black uppercase tracking-[0.2em] text-violet-600">Quote request</p>
-              <h2 className="mt-2 text-3xl font-black">Start your delivery</h2>
-              <p className="mt-2 text-sm text-slate-600">
-                This is the customer-facing quote form shell. Next step is wiring it to Supabase and payments.
-              </p>
-            </div>
-
-            <form className="space-y-5">
-              <div className="grid gap-4 sm:grid-cols-2">
-                <label className="block">
-                  <span className="text-sm font-bold text-slate-700">Pickup postcode</span>
-                  <input className="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none ring-violet-500 focus:ring-2" placeholder="TN1 1AA" />
-                </label>
-                <label className="block">
-                  <span className="text-sm font-bold text-slate-700">Delivery postcode</span>
-                  <input className="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none ring-violet-500 focus:ring-2" placeholder="TN4 8AB" />
-                </label>
-              </div>
-
-              <label className="block">
-                <span className="text-sm font-bold text-slate-700">What are we moving?</span>
-                <select className="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none ring-violet-500 focus:ring-2" defaultValue="">
-                  <option value="" disabled>Select item type</option>
-                  {itemTypes.map((item) => <option key={item}>{item}</option>)}
-                </select>
-              </label>
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <label className="block">
-                  <span className="text-sm font-bold text-slate-700">Urgency</span>
-                  <select className="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none ring-violet-500 focus:ring-2" defaultValue="scheduled">
-                    <option value="flexible">Flexible</option>
-                    <option value="scheduled">Scheduled</option>
-                    <option value="same_day">Same day</option>
-                    <option value="asap">ASAP</option>
-                  </select>
-                </label>
-                <label className="block">
-                  <span className="text-sm font-bold text-slate-700">Access notes</span>
-                  <input className="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none ring-violet-500 focus:ring-2" placeholder="Stairs, lift, parking..." />
-                </label>
-              </div>
-
-              <label className="block">
-                <span className="text-sm font-bold text-slate-700">Extra details</span>
-                <textarea className="mt-2 min-h-28 w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none ring-violet-500 focus:ring-2" placeholder="Describe the item, seller arrangements, preferred time window..." />
-              </label>
-
-              <div className="rounded-2xl bg-slate-100 p-4 text-sm text-slate-700">
-                <p className="font-bold text-slate-950">Guide price preview</p>
-                <p className="mt-1">Pricing engine connection comes next. This form is ready for wiring.</p>
-              </div>
-
-              <button
-                type="button"
-                className="w-full rounded-full bg-violet-600 px-5 py-4 text-sm font-black text-white shadow-lg shadow-violet-600/30 transition hover:bg-violet-500"
-              >
-                Request quote
-              </button>
-            </form>
-          </div>
+          <QuoteForm />
         </div>
       </section>
     </main>
