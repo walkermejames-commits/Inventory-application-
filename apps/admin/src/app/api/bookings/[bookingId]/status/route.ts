@@ -2,18 +2,31 @@ import { NextResponse } from "next/server";
 import { isStatusTransitionAllowed } from "@door-in-four/shared";
 import { supabase } from "@/lib/server";
 
-export async function POST(request: Request, { params }: { params: { bookingId: string } }) {
+export async function POST(
+  request: Request,
+  context: { params: Promise<{ bookingId: string }> }
+) {
+  const { bookingId } = await context.params;
   const { toStatus, actorUserId, actorRole, note, metadata } = await request.json();
-  const { data: booking } = await supabase.from("bookings").select("status").eq("id", params.bookingId).single();
-  if (!booking) return NextResponse.json({ error: "Booking not found" }, { status: 404 });
+
+  const { data: booking, error } = await supabase
+    .from("bookings")
+    .select("status")
+    .eq("id", bookingId)
+    .single();
+
+  if (error || !booking) {
+    return NextResponse.json({ error: "Booking not found" }, { status: 404 });
+  }
 
   if (!isStatusTransitionAllowed(booking.status, toStatus)) {
     return NextResponse.json({ error: "Transition denied" }, { status: 400 });
   }
 
-  await supabase.from("bookings").update({ status: toStatus }).eq("id", params.bookingId);
+  await supabase.from("bookings").update({ status: toStatus }).eq("id", bookingId);
+
   await supabase.from("status_events").insert({
-    booking_id: params.bookingId,
+    booking_id: bookingId,
     previous_status: booking.status,
     new_status: toStatus,
     actor_user_id: actorUserId,
@@ -28,7 +41,7 @@ export async function POST(request: Request, { params }: { params: { bookingId: 
       actor_role: actorRole,
       action: "manual_status_override",
       entity_type: "booking",
-      entity_id: params.bookingId,
+      entity_id: bookingId,
       metadata: { from: booking.status, to: toStatus, note, metadata }
     });
   }
