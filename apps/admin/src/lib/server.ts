@@ -6,7 +6,9 @@ const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const stripeKey = process.env.STRIPE_SECRET_KEY!;
 
 export const supabase = createClient(supabaseUrl, supabaseKey);
-export const stripe = new Stripe(stripeKey, { apiVersion: "2024-06-20" });
+export const stripe = new Stripe(stripeKey, {
+  apiVersion: "2025-02-24.acacia"
+});
 
 export const env = {
   SUPABASE_URL: supabaseUrl,
