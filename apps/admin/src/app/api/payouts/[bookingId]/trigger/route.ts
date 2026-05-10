@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { stripe, supabase, env } from "@/lib/server";
+import { stripe, supabase } from "@/lib/server";
 
 type RouteContext = {
   params: Promise<{ bookingId: string }>;
@@ -15,10 +15,15 @@ export async function POST(request: Request, context: RouteContext) {
     .eq("id", bookingId)
     .single();
 
-  if (!booking) return NextResponse.json({ error: "Booking not found" }, { status: 404 });
+  if (!booking) {
+    return NextResponse.json({ error: "Booking not found" }, { status: 404 });
+  }
 
   if (booking.status !== "completed") {
-    return NextResponse.json({ error: "Payout blocked: booking not completed" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Payout blocked: booking not completed" },
+      { status: 400 }
+    );
   }
 
   const { data: driverProfile } = await supabase
@@ -27,10 +32,13 @@ export async function POST(request: Request, context: RouteContext) {
     .eq("user_id", booking.driver_id)
     .single();
 
-  if (!driverProfile?.stripe_connect_account_id || !env.STRIPE_CONNECT_CLIENT_ID) {
-    return NextResponse.json({
-      error: "Payout blocked: driver Stripe Connect account missing or STRIPE_CONNECT_CLIENT_ID not configured"
-    }, { status: 400 });
+  if (!driverProfile?.stripe_connect_account_id) {
+    return NextResponse.json(
+      {
+        error: "Payout blocked: driver Stripe Connect account missing"
+      },
+      { status: 400 }
+    );
   }
 
   const transfer = await stripe.transfers.create({
@@ -40,15 +48,18 @@ export async function POST(request: Request, context: RouteContext) {
     metadata: { booking_id: booking.id }
   });
 
-  await supabase.from("payouts").upsert({
-    booking_id: booking.id,
-    driver_id: booking.driver_id,
-    stripe_connect_account_id: driverProfile.stripe_connect_account_id,
-    stripe_transfer_id: transfer.id,
-    amount: booking.driver_payout_amount,
-    currency: "gbp",
-    status: "payout_sent"
-  }, { onConflict: "booking_id" });
+  await supabase.from("payouts").upsert(
+    {
+      booking_id: booking.id,
+      driver_id: booking.driver_id,
+      stripe_connect_account_id: driverProfile.stripe_connect_account_id,
+      stripe_transfer_id: transfer.id,
+      amount: booking.driver_payout_amount,
+      currency: "gbp",
+      status: "payout_sent"
+    },
+    { onConflict: "booking_id" }
+  );
 
   await supabase.from("audit_events").insert({
     actor_user_id: actorUserId,
