@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/server";
+import { supabase } from "../../../lib/server";
 
 const hashToken = (token: string) => crypto.createHash("sha256").update(token).digest("hex");
 
