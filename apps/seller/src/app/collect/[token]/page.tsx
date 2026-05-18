@@ -1,5 +1,4 @@
 import crypto from "node:crypto";
-import { NextResponse } from "next/server"; // not needed but kept for consistency
 import { createClient } from "@supabase/supabase-js";
 import Link from "next/link";
 
@@ -10,8 +9,14 @@ const supabase = createClient(
 
 const hashToken = (token: string) => crypto.createHash("sha256").update(token).digest("hex");
 
-export default async function SellerCollectPage({ params }: { params: { token: string } }) {
-  const tokenHash = hashToken(params.token);
+export default async function SellerCollectPage({ 
+  params 
+}: { 
+  params: Promise<{ token: string }> 
+}) {
+  const { token } = await params;
+  const tokenHash = hashToken(token);
+
   const { data: contact } = await supabase
     .from("pickup_contacts")
     .select("*, bookings(id,status,scheduled_collection_start,scheduled_collection_end,users!bookings_driver_id_fkey(full_name,phone),seller_handover_code_hash)")
