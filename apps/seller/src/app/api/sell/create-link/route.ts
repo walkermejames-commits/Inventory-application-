@@ -21,11 +21,11 @@ export async function POST(request: Request) {
     .from("pickup_contacts")
     .insert({
       seller_name: body.sellerName,
-      // email removed - column may not exist in schema
+      email: body.sellerEmail,
       phone: body.sellerPhone || null,
       town: body.pickupTown,
       postcode: body.pickupPostcode,
-      // address_line removed - column doesn't exist
+      address_line: body.pickupAddress || null,
       notes: `Item: ${body.itemTitle} | Size: ${body.itemSize} | Weight: ${body.approximateWeightKg}kg | Fragile: ${body.fragile} | TwoPeople: ${body.needsTwoPeople} | Van: ${body.needsVan} | Windows: ${body.preferredPickupWindows}`,
     })
     .select("id")
