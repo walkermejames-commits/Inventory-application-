@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
-import { supabase } from "../../../../../lib/server";
+import { createClient } from "@supabase/supabase-js";
 import crypto from "node:crypto";
+
+const supabase = createClient(
+  process.env.SUPABASE_URL || "",
+  process.env.SUPABASE_SERVICE_ROLE_KEY || ""
+);
 
 export async function POST(request: Request) {
   const { token, buyerName, buyerPhone, buyerEmail, deliveryTown, deliveryPostcode, deliveryAddress, preferredDeliveryWindow, stairsNotes, deliveryNotes } = await request.json();
@@ -32,7 +37,8 @@ export async function POST(request: Request) {
 
   // Update the booking with buyer details and move to next status
   const { error } = await supabase
-    .from("bookings").update({
+    .from("bookings")
+    .update({
       buyer_name: buyerName,
       buyer_phone: buyerPhone,
       buyer_email: buyerEmail || null,
