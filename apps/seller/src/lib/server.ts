@@ -1,5 +1,17 @@
-import { createSupabaseServerClient } from "@door-in-four/shared";
-import { loadSellerEnv } from "@door-in-four/config";
+import { createClient } from "@supabase/supabase-js";
 
-const env = loadSellerEnv(process.env as Record<string, string>);
-export const supabase = createSupabaseServerClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY);
+// Seller app uses service role for server-side operations
+// Make sure SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are set in Render
+
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+if (!supabaseUrl || !supabaseServiceKey) {
+  console.warn("Missing Supabase environment variables in seller app");
+}
+
+export const supabase = createClient(supabaseUrl || "", supabaseServiceKey || "", {
+  auth: {
+    persistSession: false,
+  },
+});
