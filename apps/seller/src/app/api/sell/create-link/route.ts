@@ -25,8 +25,7 @@ export async function POST(request: Request) {
       phone: body.sellerPhone || null,
       town: body.pickupTown,
       postcode: body.pickupPostcode,
-      address_line: body.pickupAddress || null,
-      secure_token_hash: tokenHash,
+      // address_line removed temporarily - column doesn't exist in schema yet
       notes: `Item: ${body.itemTitle} | Size: ${body.itemSize} | Weight: ${body.approximateWeightKg}kg | Fragile: ${body.fragile} | TwoPeople: ${body.needsTwoPeople} | Van: ${body.needsVan} | Windows: ${body.preferredPickupWindows}`,
     })
     .select("id")
