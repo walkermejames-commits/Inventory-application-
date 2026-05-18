@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { supabase } from "../../../lib/server";
+import { supabase } from "../../../../../lib/server";
 import crypto from "node:crypto";
 
 const generateToken = () => crypto.randomBytes(16).toString("hex");
