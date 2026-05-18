@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { supabase } from "../../../lib/server";
+import { supabase } from "../../../../../lib/server";
 import crypto from "node:crypto";
 
 export async function POST(request: Request) {
@@ -32,13 +32,12 @@ export async function POST(request: Request) {
 
   // Update the booking with buyer details and move to next status
   const { error } = await supabase
-    .from("bookings")
-    .update({
+    .from("bookings").update({
       buyer_name: buyerName,
       buyer_phone: buyerPhone,
       buyer_email: buyerEmail || null,
       delivery_contact_id: deliveryContact?.id,
-      scheduled_delivery_start: preferredDeliveryWindow ? new Date().toISOString() : null, // simplified
+      scheduled_delivery_start: preferredDeliveryWindow ? new Date().toISOString() : null,
       status: "buyer_details_submitted",
       delivery_notes: deliveryNotes || null,
     })
