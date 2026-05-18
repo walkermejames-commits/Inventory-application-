@@ -141,7 +141,6 @@ export default function App() {
         actions.push({ label: "Verify pickup & collect", toStatus: "pickup_verified", requiresVerification: true });
         break;
       case "pickup_verified":
-      case "item_collected":
         actions.push({ label: "Item collected", toStatus: "item_collected" });
         break;
       case "item_collected":
@@ -176,21 +175,6 @@ export default function App() {
     } catch (e) {
       Alert.alert("Camera error", "Could not open camera. You can type a photo path instead.");
     }
-  }
-
-  async function advanceJob(jobId: string, toStatus: string, requiresVerification = false) {
-    if (isSubmitting) return;
-
-    if (requiresVerification) {
-      // Open verification form
-      setPendingAction({ jobId, toStatus, label: getNextActions(jobs.find(j => j.id === jobId)?.status || "")[0]?.label || toStatus });
-      setSellerCode("");
-      setBuyerCode("");
-      setPhotoPath("");
-      return;
-    }
-
-    await submitProgressUpdate(jobId, toStatus, "", "", "");
   }
 
   async function submitProgressUpdate(jobId: string, toStatus: string, sellerCodeVal: string, buyerCodeVal: string, photoPathVal: string) {
@@ -367,6 +351,9 @@ export default function App() {
               placeholderTextColor="#64748b"
             />
 
+            {/* TODO: Local camera URI from expo-image-picker is acceptable only for current MVP testing.
+                 For production, replace with actual Supabase Storage upload and store the returned public URL or path.
+                 The backend currently just stores whatever string is sent in photoPath. */}
             <Pressable style={styles.photoButton} onPress={pickProofPhoto}>
               <Text style={styles.buttonText}>📷 Take Proof Photo</Text>
             </Pressable>
