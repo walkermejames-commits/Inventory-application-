@@ -13,6 +13,7 @@
   "dependencies": {
     "@door-in-four/pricing": "file:../../packages/pricing",
     "@door-in-four/shared": "file:../../packages/shared",
+    "@react-native-async-storage/async-storage": "^1.23.1",
     "@react-navigation/native": "^6.1.18",
     "expo": "^51.0.38",
     "expo-image-picker": "^15.0.7",
