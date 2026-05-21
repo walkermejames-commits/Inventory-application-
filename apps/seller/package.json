@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@door-in-four/config": "file:../../packages/config",
+    "@door-in-four/pricing": "file:../../packages/pricing",
     "@door-in-four/shared": "file:../../packages/shared",
     "@stripe/stripe-js": "^5.5.0",
     "@supabase/supabase-js": "^2.46.1",
