@@ -2,8 +2,6 @@ import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { createClient } from '@supabase/supabase-js';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '');
-
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || '',
   process.env.SUPABASE_SERVICE_ROLE_KEY || ''
@@ -16,14 +14,20 @@ const getMoneyValue = (value: unknown): number | null => {
 
 export async function POST(request: Request) {
   try {
+    const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+
+    if (!stripeSecretKey) {
+      return NextResponse.json(
+        { error: 'STRIPE_SECRET_KEY is not configured' },
+        { status: 500 }
+      );
+    }
+
+    const stripe = new Stripe(stripeSecretKey);
     const { bookingId } = await request.json();
 
     if (!bookingId || typeof bookingId !== 'string') {
       return NextResponse.json({ error: 'bookingId is required' }, { status: 400 });
-    }
-
-    if (!process.env.STRIPE_SECRET_KEY) {
-      return NextResponse.json({ error: 'STRIPE_SECRET_KEY is not configured' }, { status: 500 });
     }
 
     const { data: booking, error } = await supabase
