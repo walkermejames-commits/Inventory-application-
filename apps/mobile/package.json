@@ -5,18 +5,27 @@
   "main": "index.ts",
   "scripts": {
     "dev": "expo start",
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "web": "expo start --web",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "echo 'mobile e2e tests should run in CI device farm'",
-    "lint": "echo 'lint not configured yet'",
-    "build": "echo 'build not configured for this package'"
+    "lint": "tsc -p tsconfig.json --noEmit",
+    "build": "echo 'Use EAS Build for Android release builds'"
   },
   "dependencies": {
     "@door-in-four/pricing": "file:../../packages/pricing",
     "@door-in-four/shared": "file:../../packages/shared",
+    "@expo/vector-icons": "^14.0.0",
     "@react-native-async-storage/async-storage": "^1.23.1",
     "@react-navigation/native": "^6.1.18",
+    "@react-navigation/native-stack": "^6.9.26",
+    "@supabase/supabase-js": "^2.46.1",
     "expo": "^51.0.38",
+    "expo-camera": "~15.0.16",
     "expo-image-picker": "^15.0.7",
+    "expo-location": "~17.0.1",
     "expo-status-bar": "~1.12.1",
     "react": "18.2.0",
     "react-native": "0.74.5",
@@ -25,6 +34,7 @@
     "zustand": "^5.0.0"
   },
   "devDependencies": {
+    "@babel/core": "^7.24.0",
     "@types/react": "^18.3.10",
     "typescript": "^5.6.3"
   }
