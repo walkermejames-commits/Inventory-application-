@@ -8,9 +8,11 @@ import JobsScreen from './src/screens/JobsScreen';
 import JobDetailScreen from './src/screens/JobDetailScreen';
 import EarningsScreen from './src/screens/EarningsScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
+import OnboardingScreen from './src/screens/OnboardingScreen';
 
 export type RootStackParamList = {
   Login: undefined;
+  Onboarding: undefined;
   Jobs: undefined;
   JobDetail: { bookingId?: string } | undefined;
   Earnings: undefined;
@@ -36,6 +38,11 @@ export default function App() {
           name="Login"
           component={LoginScreen}
           options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="Onboarding"
+          component={OnboardingScreen}
+          options={{ title: 'Driver onboarding' }}
         />
         <Stack.Screen
           name="Jobs"
