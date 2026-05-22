@@ -17,7 +17,7 @@ export default function PublicLanding() {
           </h1>
 
           <p className="mt-6 max-w-2xl text-2xl text-zinc-400">
-            Door in Four connects buyers, sellers, drivers and the FC into one delivery flow.
+            Door in Four connects buyers, sellers and local drivers into one simple delivery flow.
           </p>
 
           <div className="mt-16 grid gap-6 lg:grid-cols-2">
@@ -37,7 +37,7 @@ export default function PublicLanding() {
               <ul className="mt-8 space-y-3 text-sm text-zinc-300">
                 <li>✓ Buyer enters delivery details securely</li>
                 <li>✓ Seller keeps item payment separate</li>
-                <li>✓ FC dispatches local drivers</li>
+                <li>✓ Local drivers handle collection and delivery</li>
               </ul>
 
               <Link
@@ -64,7 +64,7 @@ export default function PublicLanding() {
               <ul className="mt-8 space-y-3 text-sm text-emerald-50/80">
                 <li>✓ Instant quote generation</li>
                 <li>✓ Secure Stripe payment</li>
-                <li>✓ Live FC dispatch & tracking</li>
+                <li>✓ Live delivery progress tracking</li>
               </ul>
 
               <Link
@@ -86,8 +86,8 @@ export default function PublicLanding() {
               description: "Customers see and approve the delivery quote before payment."
             },
             {
-              title: "FC dispatch oversight",
-              description: "Human dispatch oversight reduces operational chaos during launch."
+              title: "Human dispatch support",
+              description: "Our operations team helps keep deliveries moving during launch."
             },
             {
               title: "Live operational tracking",
