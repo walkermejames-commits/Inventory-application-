@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { supabase } from "@/lib/server";
+import AssignDriverForm from "@/components/fc/AssignDriverForm";
 
 type DriverProfile = {
   id: string;
@@ -145,6 +146,18 @@ export default async function DispatchPage() {
   const unassignedJobs = bookings.filter((booking) => !booking.driver_id && booking.status === "paid_awaiting_dispatch");
   const assignedJobs = bookings.filter((booking) => booking.driver_id);
 
+  const assignableDrivers = drivers.map((driver) => {
+    const user = users.find((item) => item.id === driver.user_id);
+    const activeJobs = assignedJobs.filter((job) => job.driver_id === driver.id).length;
+
+    return {
+      id: driver.id,
+      name: user?.full_name || "Unnamed driver",
+      available: Boolean(driver.current_availability),
+      activeJobs,
+    };
+  });
+
   const driverCards = drivers.map((driver, index) => {
     const user = users.find((item) => item.id === driver.user_id);
     const vehicle = vehicles.find((item) => item.driver_id === driver.id && item.active !== false);
@@ -264,7 +277,10 @@ export default async function DispatchPage() {
                         </div>
                         <span className="rounded-full bg-emerald-400 px-3 py-1 text-xs font-black text-slate-950">{money(job.driver_payout_amount ?? job.accepted_price)}</span>
                       </div>
+
                       <p className="mt-3 text-xs text-slate-500">{job.requires_van ? "Van required · " : ""}{job.requires_two_people ? "Two-person · " : ""}{job.fragile ? "Fragile" : "Standard"}</p>
+
+                      <AssignDriverForm bookingId={job.id} drivers={assignableDrivers} />
                     </div>
                   ))
                 )}
