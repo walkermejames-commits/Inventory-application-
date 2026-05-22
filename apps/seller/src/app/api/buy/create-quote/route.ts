@@ -105,6 +105,13 @@ export async function POST(request: Request) {
         driver_payout_amount: quote.driverPayoutEstimate,
         platform_fee_amount: quote.platformServiceFee,
         seller_flow_type: "buyer_led",
+        pickup_latitude: route.pickupLat,
+        pickup_longitude: route.pickupLng,
+        delivery_latitude: route.deliveryLat,
+        delivery_longitude: route.deliveryLng,
+        route_distance_miles: route.distanceMiles,
+        route_duration_minutes: route.durationMinutes,
+        route_estimated: route.estimated,
       })
       .select("id")
       .single();
