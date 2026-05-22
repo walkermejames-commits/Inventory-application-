@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { calculateQuote } from "@door-in-four/pricing";
+import { estimateRouteFromPostcodes } from "@/lib/geography";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || "",
@@ -32,6 +33,8 @@ export async function POST(request: Request) {
     if (!pickupTown || !pickupPostcode || !deliveryTown || !deliveryPostcode) {
       return NextResponse.json({ error: "Pickup and delivery town/postcode are required" }, { status: 400 });
     }
+
+    const route = await estimateRouteFromPostcodes(pickupPostcode, deliveryPostcode);
 
     const { data: pickup, error: pickupError } = await supabase
       .from("pickup_contacts")
@@ -70,8 +73,8 @@ export async function POST(request: Request) {
     }
 
     const quote = calculateQuote({
-      routeDistanceMiles: asNumber(body.routeDistanceMiles, 8),
-      routeDurationMinutes: asNumber(body.routeDurationMinutes, 25),
+      routeDistanceMiles: route.distanceMiles,
+      routeDurationMinutes: route.durationMinutes,
       itemSize: itemSize as any,
       approximateWeightKg,
       quantity: 1,
@@ -114,6 +117,7 @@ export async function POST(request: Request) {
       success: true,
       bookingId: booking.id,
       quoteAmount: quote.totalBuyerPrice,
+      route,
       redirectTo: `/quote/${booking.id}`,
     });
   } catch (error) {
