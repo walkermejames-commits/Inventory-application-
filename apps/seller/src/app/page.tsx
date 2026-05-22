@@ -1,94 +1,106 @@
 import Link from "next/link";
 
-export default function SellerLanding() {
+export default function PublicLanding() {
   return (
     <main className="min-h-screen bg-[#0a0f1e] text-white">
-      {/* Hero Section */}
-      <div className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-[radial-gradient(#1f2937_1px,transparent_1px)] bg-[length:4px_4px] opacity-50"></div>
-        
-        <div className="max-w-5xl mx-auto px-6 pt-20 pb-24 relative z-10">
-          <div className="max-w-3xl">
-            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/10 text-sm mb-6">
-              <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></div>
-              Now serving Royal Tunbridge Wells & West Kent
-            </div>
+      <div className="relative overflow-hidden border-b border-white/10">
+        <div className="absolute inset-0 bg-[radial-gradient(#1f2937_1px,transparent_1px)] bg-[length:4px_4px] opacity-40"></div>
 
-            <h1 className="text-6xl font-semibold tracking-tighter leading-none mb-6">
-              Marketplace delivery,<br />made civilised.
-            </h1>
-            
-            <p className="text-2xl text-zinc-400 max-w-xl mb-10">
-              Send your buyer a private Door in Four link. They add delivery details. You pay only for delivery.
-            </p>
+        <div className="relative z-10 mx-auto max-w-6xl px-6 pb-24 pt-20">
+          <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-sm text-emerald-200">
+            <div className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></div>
+            Royal Tunbridge Wells & West Kent launch zone
+          </div>
 
-            <div className="flex flex-col sm:flex-row gap-4">
-              <Link 
-                href="/sell" 
-                className="inline-flex items-center justify-center px-10 py-4 bg-white text-black rounded-2xl font-semibold text-lg hover:bg-zinc-100 transition-all active:scale-[0.985]"
+          <h1 className="mt-8 max-w-4xl text-6xl font-black tracking-tight leading-none">
+            Marketplace logistics without the chaos.
+          </h1>
+
+          <p className="mt-6 max-w-2xl text-2xl text-zinc-400">
+            Door in Four connects buyers, sellers, drivers and the FC into one delivery flow.
+          </p>
+
+          <div className="mt-16 grid gap-6 lg:grid-cols-2">
+            <div className="rounded-3xl border border-white/10 bg-white/5 p-8 backdrop-blur">
+              <div className="mb-4 text-sm font-bold uppercase tracking-[0.2em] text-emerald-300">
+                Seller journey
+              </div>
+
+              <h2 className="text-4xl font-black tracking-tight">
+                Selling something on Marketplace?
+              </h2>
+
+              <p className="mt-4 text-lg text-zinc-400">
+                Create a private Door in Four delivery link and send it directly to your buyer.
+              </p>
+
+              <ul className="mt-8 space-y-3 text-sm text-zinc-300">
+                <li>✓ Buyer enters delivery details securely</li>
+                <li>✓ Seller keeps item payment separate</li>
+                <li>✓ FC dispatches local drivers</li>
+              </ul>
+
+              <Link
+                href="/sell"
+                className="mt-10 inline-flex items-center justify-center rounded-2xl bg-white px-8 py-4 text-lg font-black text-black transition hover:bg-zinc-100"
               >
                 Create delivery link
               </Link>
-              
-              <Link 
-                href="/collect" 
-                className="inline-flex items-center justify-center px-10 py-4 border border-white/30 hover:bg-white/5 rounded-2xl font-medium text-lg transition-all"
+            </div>
+
+            <div className="rounded-3xl border border-emerald-400/20 bg-emerald-400/10 p-8 backdrop-blur">
+              <div className="mb-4 text-sm font-bold uppercase tracking-[0.2em] text-emerald-200">
+                Buyer journey
+              </div>
+
+              <h2 className="text-4xl font-black tracking-tight text-white">
+                Need something collected and delivered?
+              </h2>
+
+              <p className="mt-4 text-lg text-emerald-100/80">
+                Enter pickup and delivery details, receive a quote instantly, then track your delivery live.
+              </p>
+
+              <ul className="mt-8 space-y-3 text-sm text-emerald-50/80">
+                <li>✓ Instant quote generation</li>
+                <li>✓ Secure Stripe payment</li>
+                <li>✓ Live FC dispatch & tracking</li>
+              </ul>
+
+              <Link
+                href="/buy"
+                className="mt-10 inline-flex items-center justify-center rounded-2xl bg-emerald-300 px-8 py-4 text-lg font-black text-slate-950 transition hover:bg-emerald-200"
               >
-                Track a collection
+                Start buyer booking
               </Link>
             </div>
           </div>
         </div>
       </div>
 
-      {/* How it works */}
-      <div className="max-w-5xl mx-auto px-6 py-20 border-t border-white/10">
-        <div className="text-center mb-16">
-          <div className="text-emerald-400 text-sm font-medium tracking-[2px] mb-3">3 SIMPLE STEPS</div>
-          <h2 className="text-4xl font-semibold tracking-tight">How Door in Four works for sellers</h2>
-        </div>
-
-        <div className="grid md:grid-cols-3 gap-6">
-          {[ 
-            { step: "1", title: "Create a link", desc: "Fill in item and pickup details. We generate a private link for your buyer." },
-            { step: "2", title: "Buyer adds delivery info", desc: "They enter their address and preferred time. Item payment stays between you two." },
-            { step: "3", title: "Confirm & pay for delivery", desc: "You confirm the quote and pay Door in Four. Driver is assigned automatically." }
-          ].map((item, index) => (
-            <div key={index} className="bg-zinc-900/80 border border-white/10 rounded-3xl p-8">
-              <div className="w-12 h-12 rounded-2xl bg-white/10 flex items-center justify-center text-2xl font-semibold mb-8">{item.step}</div>
-              <h3 className="text-2xl font-semibold tracking-tight mb-4">{item.title}</h3>
-              <p className="text-zinc-400 leading-relaxed">{item.desc}</p>
+      <section className="mx-auto max-w-6xl px-6 py-20">
+        <div className="grid gap-6 md:grid-cols-3">
+          {[
+            {
+              title: "Quote visibility",
+              description: "Customers see and approve the delivery quote before payment."
+            },
+            {
+              title: "FC dispatch oversight",
+              description: "Human dispatch oversight reduces operational chaos during launch."
+            },
+            {
+              title: "Live operational tracking",
+              description: "Track jobs, drivers and delivery progress from one system."
+            }
+          ].map((item) => (
+            <div key={item.title} className="rounded-3xl border border-white/10 bg-white/5 p-8">
+              <h3 className="text-2xl font-black tracking-tight">{item.title}</h3>
+              <p className="mt-4 text-zinc-400">{item.description}</p>
             </div>
           ))}
         </div>
-      </div>
-
-      {/* Trust section */}
-      <div className="bg-zinc-900/50 border-t border-white/10 py-16">
-        <div className="max-w-4xl mx-auto px-6 text-center">
-          <p className="text-lg text-zinc-400 max-w-md mx-auto">
-            Door in Four only charges for delivery. The buyer pays you directly for the item — exactly like a normal Marketplace sale.
-          </p>
-          <div className="mt-8 flex justify-center gap-8 text-sm text-zinc-500">
-            <div>✓ No escrow</div>
-            <div>✓ No item payment handling</div>
-            <div>✓ Local West Kent drivers</div>
-          </div>
-        </div>
-      </div>
-
-      {/* Footer CTA */}
-      <div className="border-t border-white/10 py-12">
-        <div className="max-w-md mx-auto text-center px-6">
-          <p className="text-zinc-400 mb-6">Ready to offer delivery on your next Marketplace sale?</p>
-          <Link 
-            href="/sell" 
-            className="inline-block px-8 py-3.5 bg-white text-black rounded-2xl font-semibold hover:bg-zinc-100 transition"
-          >
-            Create your first delivery link
-          </Link>
-        </div>
-      </div>
+      </section>
     </main>
   );
 }
