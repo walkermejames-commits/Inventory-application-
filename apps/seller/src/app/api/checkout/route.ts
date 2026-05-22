@@ -49,6 +49,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'This booking has already been paid' }, { status: 400 });
     }
 
+    if (booking.status !== 'awaiting_payment') {
+      return NextResponse.json(
+        {
+          error: 'Quote must be confirmed before payment can begin',
+        },
+        { status: 400 }
+      );
+    }
+
     const quote = Array.isArray(booking.quotes) ? booking.quotes[0] : booking.quotes;
     const pickup = Array.isArray(booking.pickup_contacts) ? booking.pickup_contacts[0] : booking.pickup_contacts;
     const delivery = Array.isArray(booking.delivery_addresses) ? booking.delivery_addresses[0] : booking.delivery_addresses;
