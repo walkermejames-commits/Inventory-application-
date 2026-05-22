@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import PostcodeAutocomplete from "@/components/PostcodeAutocomplete";
+import PostcodeAutocomplete from "../../components/PostcodeAutocomplete";
 
 export default function BuyerJourneyPage() {
   const router = useRouter();
