@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   FlatList,
   RefreshControl,
@@ -13,59 +13,64 @@ import JobCard from '../components/JobCard';
 import { Booking } from '../types/booking';
 import { colors } from '../theme/colors';
 
-const mockBookings: Booking[] = [
-  {
-    id: 'job-1',
-    status: 'paid_awaiting_dispatch',
-    payment_status: 'paid',
-    pickup_town: 'Tunbridge Wells',
-    delivery_town: 'Tonbridge',
-    item_title: 'Vintage oak desk',
-    item_size: 'furniture',
-    approximate_weight_kg: 42,
-    fragile: true,
-    requires_two_people: true,
-    requires_van: true,
-    delivery_quote_amount: 86,
-    accepted_price: 86,
-    driver_payout_amount: 58,
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: 'job-2',
-    status: 'driver_assigned',
-    payment_status: 'paid',
-    pickup_town: 'Sevenoaks',
-    delivery_town: 'Maidstone',
-    item_title: 'Marketplace TV cabinet',
-    item_size: 'large',
-    approximate_weight_kg: 28,
-    fragile: false,
-    requires_two_people: false,
-    requires_van: true,
-    delivery_quote_amount: 52,
-    accepted_price: 52,
-    driver_payout_amount: 35,
-    created_at: new Date().toISOString(),
-  },
-];
+const adminApiUrl = process.env.EXPO_PUBLIC_ADMIN_API_URL || '';
+const demoDriverId = process.env.EXPO_PUBLIC_DEMO_DRIVER_ID || '';
+const pollIntervalMs = 10000;
+
+async function loadAssignedJobs(): Promise<Booking[]> {
+  if (!adminApiUrl || !demoDriverId) {
+    return [];
+  }
+
+  const baseUrl = adminApiUrl.replace(/\/$/, '');
+  const response = await fetch(`${baseUrl}/api/mobile/jobs?driverId=${encodeURIComponent(demoDriverId)}`);
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data?.error || 'Could not load assigned jobs');
+  }
+
+  return data.jobs || [];
+}
 
 export default function JobsScreen({ navigation }: any) {
   const [refreshing, setRefreshing] = useState(false);
-  const [jobs] = useState<Booking[]>(mockBookings);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [jobs, setJobs] = useState<Booking[]>([]);
 
   const activeJobs = useMemo(
     () => jobs.filter(job => job.status !== 'completed' && job.status !== 'cancelled'),
     [jobs]
   );
 
+  const fetchJobs = async () => {
+    try {
+      const nextJobs = await loadAssignedJobs();
+      setJobs(nextJobs);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not load jobs');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchJobs();
+
+    const interval = setInterval(fetchJobs, pollIntervalMs);
+
+    return () => clearInterval(interval);
+  }, []);
+
   const onRefresh = async () => {
     setRefreshing(true);
-
-    await new Promise(resolve => setTimeout(resolve, 1000));
-
+    await fetchJobs();
     setRefreshing(false);
   };
+
+  const missingConfig = !adminApiUrl || !demoDriverId;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -86,7 +91,7 @@ export default function JobsScreen({ navigation }: any) {
       <View style={styles.statsRow}>
         <View style={styles.statCard}>
           <Text style={styles.statNumber}>{activeJobs.length}</Text>
-          <Text style={styles.statLabel}>Active jobs</Text>
+          <Text style={styles.statLabel}>Assigned jobs</Text>
         </View>
 
         <View style={styles.statCard}>
@@ -95,9 +100,25 @@ export default function JobsScreen({ navigation }: any) {
               .reduce((sum, job) => sum + (job.driver_payout_amount || 0), 0)
               .toFixed(0)
           }</Text>
-          <Text style={styles.statLabel}>Potential payout</Text>
+          <Text style={styles.statLabel}>Assigned payout</Text>
         </View>
       </View>
+
+      {missingConfig ? (
+        <View style={styles.warningBox}>
+          <Text style={styles.warningTitle}>Driver feed not configured</Text>
+          <Text style={styles.warningText}>
+            Add EXPO_PUBLIC_ADMIN_API_URL and EXPO_PUBLIC_DEMO_DRIVER_ID to the mobile app environment.
+          </Text>
+        </View>
+      ) : null}
+
+      {error ? (
+        <View style={styles.errorBox}>
+          <Text style={styles.errorTitle}>Could not load jobs</Text>
+          <Text style={styles.errorText}>{error}</Text>
+        </View>
+      ) : null}
 
       <FlatList
         data={activeJobs}
@@ -122,9 +143,9 @@ export default function JobsScreen({ navigation }: any) {
         )}
         ListEmptyComponent={
           <View style={styles.emptyState}>
-            <Text style={styles.emptyTitle}>No jobs right now</Text>
+            <Text style={styles.emptyTitle}>{loading ? 'Loading jobs...' : 'No assigned jobs'}</Text>
             <Text style={styles.emptyText}>
-              New delivery work will appear here automatically.
+              FC-assigned delivery work will appear here automatically.
             </Text>
           </View>
         }
@@ -194,6 +215,42 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginTop: 4,
     fontSize: 13,
+  },
+  warningBox: {
+    marginHorizontal: 22,
+    marginTop: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: colors.warning,
+    backgroundColor: colors.surface,
+    padding: 16,
+  },
+  warningTitle: {
+    color: colors.warning,
+    fontWeight: '900',
+    marginBottom: 6,
+  },
+  warningText: {
+    color: colors.textSecondary,
+    lineHeight: 20,
+  },
+  errorBox: {
+    marginHorizontal: 22,
+    marginTop: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: colors.danger,
+    backgroundColor: colors.surface,
+    padding: 16,
+  },
+  errorTitle: {
+    color: colors.danger,
+    fontWeight: '900',
+    marginBottom: 6,
+  },
+  errorText: {
+    color: colors.textSecondary,
+    lineHeight: 20,
   },
   listContent: {
     padding: 22,
