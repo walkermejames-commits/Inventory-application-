@@ -7,21 +7,24 @@ type PageProps = {
 
 type QuoteRecord = {
   id: string;
-  pickup_town?: string | null;
-  delivery_town?: string | null;
   pickup_postcode?: string | null;
   delivery_postcode?: string | null;
-  item_size?: string | null;
-  approximate_weight_kg?: number | null;
+  route_distance_miles?: number | null;
+  route_duration_minutes?: number | null;
+  item_summary?: string | null;
+  subtotal?: number | null;
+  platform_fee?: number | null;
   total_price?: number | null;
+  driver_payout_estimate?: number | null;
+  currency?: string | null;
+  expires_at?: string | null;
+  accepted_at?: string | null;
   status?: string | null;
   created_at?: string | null;
-  item_summary?: string | null;
 };
 
-function parseItemSizeFromSummary(summary?: string | null) {
-  if (!summary) return "—";
-  return summary.split(" x")[0] || "—";
+function formatMoney(value?: number | null) {
+  return `£${Number(value ?? 0).toFixed(2)}`;
 }
 
 export default async function QuotesPage({ searchParams }: PageProps) {
@@ -31,14 +34,14 @@ export default async function QuotesPage({ searchParams }: PageProps) {
   let query = supabase
     .from("quotes")
     .select(
-      "id,pickup_town,delivery_town,pickup_postcode,delivery_postcode,item_size,approximate_weight_kg,total_price,status,created_at,item_summary"
+      "id,pickup_postcode,delivery_postcode,route_distance_miles,route_duration_minutes,item_summary,subtotal,platform_fee,total_price,driver_payout_estimate,currency,expires_at,accepted_at,status,created_at"
     )
     .order("created_at", { ascending: false })
     .limit(250);
 
   if (searchText) {
     query = query.or(
-      `id.ilike.%${searchText}%,pickup_town.ilike.%${searchText}%,delivery_town.ilike.%${searchText}%,pickup_postcode.ilike.%${searchText}%,delivery_postcode.ilike.%${searchText}%,status.ilike.%${searchText}%,item_summary.ilike.%${searchText}%`
+      `id.ilike.%${searchText}%,pickup_postcode.ilike.%${searchText}%,delivery_postcode.ilike.%${searchText}%,status.ilike.%${searchText}%,item_summary.ilike.%${searchText}%`
     );
   }
 
@@ -50,11 +53,11 @@ export default async function QuotesPage({ searchParams }: PageProps) {
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         <div className="mb-8 flex flex-col gap-4 rounded-3xl bg-slate-950 p-8 text-white shadow-2xl lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <p className="mb-2 text-sm font-semibold uppercase tracking-[0.2em] text-violet-300">Door in Four</p>
+            <p className="mb-2 text-sm font-semibold uppercase tracking-[0.2em] text-emerald-300">Door in Four · FC</p>
             <h1 className="text-4xl font-black tracking-tight">Quotes / Quote Query</h1>
-            <p className="mt-3 max-w-2xl text-slate-300">Search and review quote records created by the get-a-quote flow.</p>
+            <p className="mt-3 max-w-2xl text-slate-300">Search and review quote records created by the quote flow.</p>
           </div>
-          <Link href="/" className="inline-flex h-fit items-center justify-center rounded-full bg-violet-500 px-5 py-3 text-sm font-bold text-white transition hover:bg-violet-400">Return home</Link>
+          <Link href="/" className="inline-flex h-fit items-center justify-center rounded-full bg-emerald-400 px-5 py-3 text-sm font-black text-slate-950 transition hover:bg-emerald-300">Return to FC</Link>
         </div>
 
         <form className="mb-6" method="GET">
@@ -62,8 +65,8 @@ export default async function QuotesPage({ searchParams }: PageProps) {
             type="text"
             name="q"
             defaultValue={searchText}
-            placeholder="Search by ID, town, postcode, status or item"
-            className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none ring-violet-500 focus:ring-2"
+            placeholder="Search by ID, postcode, status or item"
+            className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none ring-emerald-500 focus:ring-2"
           />
         </form>
 
@@ -86,11 +89,12 @@ export default async function QuotesPage({ searchParams }: PageProps) {
                 <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
                   <tr>
                     <th className="px-6 py-4">Quote ID</th>
-                    <th className="px-6 py-4">Pickup town</th>
-                    <th className="px-6 py-4">Delivery town</th>
-                    <th className="px-6 py-4">Item size</th>
-                    <th className="px-6 py-4">Weight (kg)</th>
+                    <th className="px-6 py-4">Pickup postcode</th>
+                    <th className="px-6 py-4">Delivery postcode</th>
+                    <th className="px-6 py-4">Item</th>
+                    <th className="px-6 py-4">Route</th>
                     <th className="px-6 py-4">Total price</th>
+                    <th className="px-6 py-4">Driver estimate</th>
                     <th className="px-6 py-4">Status</th>
                     <th className="px-6 py-4">Created</th>
                   </tr>
@@ -99,12 +103,15 @@ export default async function QuotesPage({ searchParams }: PageProps) {
                   {quotes.map((quote) => (
                     <tr key={quote.id} className="transition hover:bg-slate-50">
                       <td className="px-6 py-5 font-mono text-xs text-slate-700">{quote.id.slice(0, 8)}...</td>
-                      <td className="px-6 py-5 text-slate-700">{quote.pickup_town ?? quote.pickup_postcode ?? "—"}</td>
-                      <td className="px-6 py-5 text-slate-700">{quote.delivery_town ?? quote.delivery_postcode ?? "—"}</td>
-                      <td className="px-6 py-5 text-slate-700">{quote.item_size ?? parseItemSizeFromSummary(quote.item_summary)}</td>
-                      <td className="px-6 py-5 text-slate-700">{quote.approximate_weight_kg ?? "—"}</td>
-                      <td className="px-6 py-5 font-semibold">£{Number(quote.total_price ?? 0).toFixed(2)}</td>
-                      <td className="px-6 py-5"><span className="rounded-full bg-violet-100 px-3 py-1 text-xs font-bold text-violet-700">{quote.status ?? "unknown"}</span></td>
+                      <td className="px-6 py-5 text-slate-700">{quote.pickup_postcode ?? "—"}</td>
+                      <td className="px-6 py-5 text-slate-700">{quote.delivery_postcode ?? "—"}</td>
+                      <td className="px-6 py-5 text-slate-700">{quote.item_summary ?? "—"}</td>
+                      <td className="px-6 py-5 text-slate-700">
+                        {Number(quote.route_distance_miles ?? 0).toFixed(1)} mi · {Number(quote.route_duration_minutes ?? 0).toFixed(0)} min
+                      </td>
+                      <td className="px-6 py-5 font-semibold">{formatMoney(quote.total_price)}</td>
+                      <td className="px-6 py-5 text-slate-700">{formatMoney(quote.driver_payout_estimate)}</td>
+                      <td className="px-6 py-5"><span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-700">{quote.status ?? "unknown"}</span></td>
                       <td className="px-6 py-5 text-slate-500">{quote.created_at ? new Date(quote.created_at).toLocaleDateString("en-GB") : "Unknown"}</td>
                     </tr>
                   ))}
