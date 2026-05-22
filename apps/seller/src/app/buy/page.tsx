@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import PostcodeAutocomplete from "@/components/PostcodeAutocomplete";
 
 export default function BuyerJourneyPage() {
   const router = useRouter();
@@ -39,6 +40,8 @@ export default function BuyerJourneyPage() {
     }
   }
 
+  const inputClassName = "w-full rounded-2xl border border-white/10 bg-slate-900 px-4 py-3";
+
   return (
     <main className="min-h-screen bg-slate-950 text-white">
       <div className="mx-auto max-w-5xl px-6 py-16">
@@ -61,11 +64,18 @@ export default function BuyerJourneyPage() {
             <h2 className="text-2xl font-black">Collection details</h2>
 
             <div className="mt-6 space-y-4">
-              <input name="pickupTown" placeholder="Pickup town" required className="w-full rounded-2xl border border-white/10 bg-slate-900 px-4 py-3" />
-              <input name="pickupPostcode" placeholder="Pickup postcode" required className="w-full rounded-2xl border border-white/10 bg-slate-900 px-4 py-3" />
-              <input name="pickupAddress" placeholder="Pickup address" className="w-full rounded-2xl border border-white/10 bg-slate-900 px-4 py-3" />
-              <input name="sellerName" placeholder="Seller/contact name" className="w-full rounded-2xl border border-white/10 bg-slate-900 px-4 py-3" />
-              <input name="sellerPhone" placeholder="Seller/contact phone" className="w-full rounded-2xl border border-white/10 bg-slate-900 px-4 py-3" />
+              <input name="pickupTown" placeholder="Pickup town" required className={inputClassName} />
+
+              <PostcodeAutocomplete
+                name="pickupPostcode"
+                placeholder="Pickup postcode"
+                required
+                className={inputClassName}
+              />
+
+              <input name="pickupAddress" placeholder="Pickup address" className={inputClassName} />
+              <input name="sellerName" placeholder="Seller/contact name" className={inputClassName} />
+              <input name="sellerPhone" placeholder="Seller/contact phone" className={inputClassName} />
             </div>
           </section>
 
@@ -73,11 +83,18 @@ export default function BuyerJourneyPage() {
             <h2 className="text-2xl font-black">Delivery details</h2>
 
             <div className="mt-6 space-y-4">
-              <input name="deliveryTown" placeholder="Delivery town" required className="w-full rounded-2xl border border-white/10 bg-slate-900 px-4 py-3" />
-              <input name="deliveryPostcode" placeholder="Delivery postcode" required className="w-full rounded-2xl border border-white/10 bg-slate-900 px-4 py-3" />
-              <input name="deliveryAddress" placeholder="Delivery address" className="w-full rounded-2xl border border-white/10 bg-slate-900 px-4 py-3" />
-              <input name="buyerName" placeholder="Your name" className="w-full rounded-2xl border border-white/10 bg-slate-900 px-4 py-3" />
-              <input name="buyerPhone" placeholder="Your phone" className="w-full rounded-2xl border border-white/10 bg-slate-900 px-4 py-3" />
+              <input name="deliveryTown" placeholder="Delivery town" required className={inputClassName} />
+
+              <PostcodeAutocomplete
+                name="deliveryPostcode"
+                placeholder="Delivery postcode"
+                required
+                className={inputClassName}
+              />
+
+              <input name="deliveryAddress" placeholder="Delivery address" className={inputClassName} />
+              <input name="buyerName" placeholder="Your name" className={inputClassName} />
+              <input name="buyerPhone" placeholder="Your phone" className={inputClassName} />
             </div>
           </section>
 
