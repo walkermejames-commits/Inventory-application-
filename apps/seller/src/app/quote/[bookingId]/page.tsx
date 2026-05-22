@@ -78,8 +78,10 @@ export default function QuoteReviewPage() {
     setError(null);
 
     try {
-      const res = await fetch(`/api/bookings/${booking.id}/confirm-quote`, {
-        method: 'POST',
+      const res = await fetch(`/api/bookings/${booking.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ quote_confirmed: true }),
       });
       const data = await res.json();
 
