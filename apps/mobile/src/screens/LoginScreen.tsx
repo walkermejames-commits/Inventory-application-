@@ -36,7 +36,7 @@ export default function LoginScreen({ navigation }: any) {
           <Text style={styles.kicker}>DOOR IN FOUR</Text>
           <Text style={styles.title}>Driver cockpit</Text>
           <Text style={styles.subtitle}>
-            Sign in to see available work, accept delivery jobs, and keep collections moving.
+            Sign in to see assigned delivery work, accept jobs, and keep the railway moving.
           </Text>
         </View>
 
@@ -69,11 +69,19 @@ export default function LoginScreen({ navigation }: any) {
             onPress={handleLogin}
             disabled={loading}
           >
-            <Text style={styles.buttonText}>{loading ? 'Signing in...' : 'Start driving'}</Text>
+            <Text style={styles.buttonText}>{loading ? 'Signing in...' : 'Enter the railway'}</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            activeOpacity={0.85}
+            style={styles.secondaryButton}
+            onPress={() => navigation.navigate('Onboarding')}
+          >
+            <Text style={styles.secondaryButtonText}>Apply to drive for the FC</Text>
           </TouchableOpacity>
 
           <Text style={styles.helperText}>
-            MVP login uses a demo driver identity. Real Supabase auth comes next.
+            MVP login still uses a demo driver identity while FC onboarding and approvals are being built.
           </Text>
         </View>
       </KeyboardAvoidingView>
@@ -145,6 +153,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 22,
   },
+  secondaryButton: {
+    borderRadius: 20,
+    paddingVertical: 16,
+    alignItems: 'center',
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.background,
+  },
   buttonDisabled: {
     opacity: 0.55,
   },
@@ -152,6 +169,11 @@ const styles = StyleSheet.create({
     color: '#000',
     fontSize: 17,
     fontWeight: '900',
+  },
+  secondaryButtonText: {
+    color: colors.text,
+    fontSize: 15,
+    fontWeight: '800',
   },
   helperText: {
     color: colors.textMuted,
