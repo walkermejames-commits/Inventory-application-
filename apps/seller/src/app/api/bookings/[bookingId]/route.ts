@@ -13,6 +13,12 @@ type RouteContext = {
 type SafeBookingPatch = {
   seller_payment_confirmed?: boolean;
   seller_paid_delivery?: boolean;
+  quote_confirmed?: boolean;
+};
+
+const asPositiveNumber = (value: unknown): number | null => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 };
 
 const toPublicBooking = (booking: any) => {
@@ -75,7 +81,51 @@ export async function PATCH(request: Request, context: RouteContext) {
     const { bookingId } = await context.params;
     const body = await request.json() as SafeBookingPatch;
 
-    const safePatch: SafeBookingPatch = {};
+    if (body.quote_confirmed === true) {
+      const { data: booking, error: lookupError } = await supabase
+        .from('bookings')
+        .select('id,payment_status,delivery_quote_amount')
+        .eq('id', bookingId)
+        .single();
+
+      if (lookupError || !booking) {
+        return NextResponse.json({ error: lookupError?.message || 'Booking not found' }, { status: 404 });
+      }
+
+      if (booking.payment_status === 'paid') {
+        return NextResponse.json({ error: 'This booking has already been paid' }, { status: 400 });
+      }
+
+      const confirmedAmount = asPositiveNumber(booking.delivery_quote_amount);
+
+      if (!confirmedAmount) {
+        return NextResponse.json({ error: 'No delivery quote exists for this booking yet' }, { status: 400 });
+      }
+
+      const { data, error } = await supabase
+        .from('bookings')
+        .update({
+          accepted_price: confirmedAmount,
+          status: 'awaiting_payment',
+          payment_status: 'payment_pending',
+        })
+        .eq('id', bookingId)
+        .select(`
+          *,
+          quotes (*),
+          pickup_contacts (*),
+          delivery_addresses (*)
+        `)
+        .single();
+
+      if (error || !data) {
+        return NextResponse.json({ error: error?.message || 'Failed to confirm quote' }, { status: 400 });
+      }
+
+      return NextResponse.json({ booking: toPublicBooking(data), checkoutUrl: `/checkout/${bookingId}` });
+    }
+
+    const safePatch: Omit<SafeBookingPatch, 'quote_confirmed'> = {};
 
     if (typeof body.seller_payment_confirmed === 'boolean') {
       safePatch.seller_payment_confirmed = body.seller_payment_confirmed;
