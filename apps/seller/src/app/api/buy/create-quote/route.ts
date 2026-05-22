@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { calculateQuote } from "@door-in-four/pricing";
-import { estimateRouteFromPostcodes } from "@/lib/geography";
+import { estimateRouteFromPostcodes } from "../../../../lib/geography";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || "",
