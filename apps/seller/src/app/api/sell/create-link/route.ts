@@ -10,6 +10,17 @@ const supabase = createClient(
 const generateToken = () => crypto.randomBytes(16).toString("hex");
 const hashToken = (token: string) => crypto.createHash("sha256").update(token).digest("hex");
 
+const getPublicBaseUrl = (request: Request) => {
+  const configuredUrl = process.env.NEXT_PUBLIC_SELLER_URL || process.env.NEXT_PUBLIC_SITE_URL;
+
+  if (configuredUrl && !configuredUrl.includes("localhost") && !configuredUrl.includes("127.0.0.1")) {
+    return configuredUrl.replace(/\/$/, "");
+  }
+
+  const requestUrl = new URL(request.url);
+  return requestUrl.origin;
+};
+
 export async function POST(request: Request) {
   try {
     const body = await request.json();
@@ -60,7 +71,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: bookingError?.message || "Could not create booking" }, { status: 400 });
     }
 
-    const sellerBaseUrl = process.env.NEXT_PUBLIC_SELLER_URL || process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3002";
+    const sellerBaseUrl = getPublicBaseUrl(request);
     const buyerLink = `${sellerBaseUrl}/buyer/${token}`;
     const messengerText = `Hi, I can arrange delivery through Door in Four for the ${body.itemTitle}. Please add your delivery details here: ${buyerLink}\n\nItem payment is still between us. This link is just for delivery, and you will see the delivery quote before paying.`;
 
