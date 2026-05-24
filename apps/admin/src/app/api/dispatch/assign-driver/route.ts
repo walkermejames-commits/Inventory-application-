@@ -21,7 +21,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: bookingError?.message || "Booking not found" }, { status: 404 });
     }
 
-    if (booking.payment_status !== "paid" || booking.status !== "paid_awaiting_dispatch") {
+    const paymentLooksPaid =
+      booking.status === "paid_awaiting_dispatch" ||
+      booking.payment_status === "paid" ||
+      booking.payment_status === "payment_succeeded" ||
+      booking.payment_status === "succeeded";
+
+    if (!paymentLooksPaid || booking.status !== "paid_awaiting_dispatch") {
       return NextResponse.json(
         { error: "Only paid jobs waiting for dispatch can be assigned" },
         { status: 400 }
