@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { supabase } from "@/lib/server";
+import AssignDriverForm, { type AssignableDriver } from "@/components/fc/AssignDriverForm";
 
 type SearchParams = {
   status?: string;
@@ -156,6 +157,17 @@ export default async function OperationsPage({ searchParams }: PageProps) {
   const driverById = new Map(drivers.map((driver) => [driver.id, driver]));
   const userById = new Map(users.map((user) => [user.id, user]));
 
+  const assignableDrivers: AssignableDriver[] = drivers.map((driver) => {
+    const user = driver.user_id ? userById.get(driver.user_id) : null;
+
+    return {
+      id: driver.id,
+      name: user?.full_name || user?.email || `Driver ${driver.id.slice(0, 6)}`,
+      available: driver.current_availability !== false,
+      activeJobs: bookings.filter((booking) => booking.driver_id === driver.id && booking.status !== "delivered").length,
+    };
+  });
+
   const totalValue = bookings.reduce((sum, booking) => sum + Number(booking.accepted_price ?? booking.delivery_quote_amount ?? 0), 0);
   const paidCount = bookings.filter((booking) => (booking.payment_status || "").includes("paid") || booking.status === "paid_awaiting_dispatch").length;
   const assignedCount = bookings.filter((booking) => booking.driver_id).length;
@@ -169,7 +181,7 @@ export default async function OperationsPage({ searchParams }: PageProps) {
             <p className="mb-2 text-sm font-semibold uppercase tracking-[0.2em] text-emerald-300">Door in Four · FC</p>
             <h1 className="text-4xl font-black tracking-tight">Live Operations</h1>
             <p className="mt-3 max-w-3xl text-slate-300">
-              Canonical booking view for status, driver, ETA, payment, route and customer contact. Bookings are the operational truth; quote attempts stay separate for funnel intelligence.
+              Canonical booking view for status, driver, ETA, payment, route and customer contact.
             </p>
           </div>
 
@@ -183,174 +195,96 @@ export default async function OperationsPage({ searchParams }: PageProps) {
           </div>
         </div>
 
-        <div className="mb-8 grid gap-4 md:grid-cols-4">
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Visible bookings</p>
-            <p className="mt-2 text-3xl font-black">{bookings.length}</p>
-          </div>
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Paid / payment-ready</p>
-            <p className="mt-2 text-3xl font-black">{paidCount}</p>
-          </div>
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Assigned drivers</p>
-            <p className="mt-2 text-3xl font-black">{assignedCount}</p>
-          </div>
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Unassigned paid</p>
-            <p className="mt-2 text-3xl font-black text-amber-700">{unassignedPaidCount}</p>
-          </div>
-        </div>
+        <div className="grid gap-5">
+          {bookings.map((booking) => {
+            const pickup = getPickup(booking);
+            const delivery = getDelivery(booking);
+            const driver = booking.driver_id ? driverById.get(booking.driver_id) : null;
+            const driverUser = driver?.user_id ? userById.get(driver.user_id) : null;
+            const routeMinutes = Number(booking.route_duration_minutes ?? 0);
+            const etaMinutes = booking.status?.includes("driver") || booking.status?.includes("collected") ? routeMinutes : null;
+            const customerName = delivery?.recipient_name || delivery?.buyer_name || pickup?.seller_name || "Unknown customer";
+            const customerPhone = delivery?.recipient_phone || delivery?.buyer_phone || pickup?.seller_phone || "No phone";
+            const price = booking.accepted_price ?? booking.delivery_quote_amount;
 
-        <div className="mb-6 flex flex-wrap gap-3">
-          {[
-            ["active", "Active"],
-            ["all", "All"],
-            ["quote_created", "Quote created"],
-            ["seller_quote_pending", "Seller quote pending"],
-            ["awaiting_payment", "Awaiting payment"],
-            ["paid_awaiting_dispatch", "Paid awaiting dispatch"],
-            ["driver_assigned", "Driver assigned"],
-            ["driver_en_route_to_pickup", "En route pickup"],
-            ["item_collected", "Collected"],
-            ["driver_en_route_to_delivery", "En route delivery"],
-            ["delivered", "Delivered"],
-          ].map(([status, label]) => (
-            <Link
-              key={status}
-              href={`/operations?status=${status}`}
-              className={`rounded-full border px-4 py-2 text-sm font-bold shadow-sm transition ${selectedStatus === status ? "border-slate-950 bg-slate-950 text-white" : "border-slate-300 bg-white text-slate-700 hover:border-emerald-400 hover:text-emerald-700"}`}
-            >
-              {label}
-            </Link>
-          ))}
-        </div>
-
-        {error ? (
-          <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-sm font-semibold text-red-700">
-            Error loading operations board: {error.message}
-          </div>
-        ) : null}
-
-        {!error && bookings.length === 0 ? (
-          <div className="rounded-3xl border border-slate-200 bg-white p-8 text-center text-slate-600 shadow-sm">
-            No bookings found for this view.
-          </div>
-        ) : null}
-
-        {!error && bookings.length > 0 ? (
-          <div className="grid gap-5">
-            {bookings.map((booking) => {
-              const pickup = getPickup(booking);
-              const delivery = getDelivery(booking);
-              const driver = booking.driver_id ? driverById.get(booking.driver_id) : null;
-              const driverUser = driver?.user_id ? userById.get(driver.user_id) : null;
-              const routeMinutes = Number(booking.route_duration_minutes ?? 0);
-              const etaMinutes = booking.status?.includes("driver") || booking.status?.includes("collected") ? routeMinutes : null;
-              const customerName = delivery?.recipient_name || delivery?.buyer_name || pickup?.seller_name || "Unknown customer";
-              const customerPhone = delivery?.recipient_phone || delivery?.buyer_phone || pickup?.seller_phone || "No phone";
-              const price = booking.accepted_price ?? booking.delivery_quote_amount;
-
-              return (
-                <section key={booking.id} className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-xl shadow-slate-200/60">
-                  <div className="grid gap-0 lg:grid-cols-[1.15fr_0.85fr]">
-                    <div className="p-6">
-                      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-                        <div>
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className={`rounded-full px-3 py-1 text-xs font-black ${statusClass(booking.status)}`}>
-                              {statusLabel(booking.status)}
-                            </span>
-                            <span className={`rounded-full px-3 py-1 text-xs font-black ${paymentClass(booking.payment_status)}`}>
-                              {statusLabel(booking.payment_status || "payment unknown")}
-                            </span>
-                            {booking.requires_van ? <span className="rounded-full bg-slate-900 px-3 py-1 text-xs font-black text-white">Van</span> : null}
-                            {booking.requires_two_people ? <span className="rounded-full bg-slate-900 px-3 py-1 text-xs font-black text-white">2-person</span> : null}
-                            {booking.fragile ? <span className="rounded-full bg-pink-100 px-3 py-1 text-xs font-black text-pink-800">Fragile</span> : null}
-                          </div>
-
-                          <h2 className="mt-4 text-2xl font-black tracking-tight">
-                            {pickup?.town || pickup?.postcode || "Pickup"} → {delivery?.town || delivery?.postcode || "Delivery"}
-                          </h2>
-
-                          <p className="mt-2 text-sm text-slate-500">
-                            {booking.item_title || "Delivery job"} · {booking.item_size || "item"} · {Number(booking.approximate_weight_kg ?? 0).toFixed(0)}kg
-                          </p>
+            return (
+              <section key={booking.id} className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-xl shadow-slate-200/60">
+                <div className="grid gap-0 lg:grid-cols-[1.15fr_0.85fr]">
+                  <div className="p-6">
+                    <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className={`rounded-full px-3 py-1 text-xs font-black ${statusClass(booking.status)}`}>
+                            {statusLabel(booking.status)}
+                          </span>
+                          <span className={`rounded-full px-3 py-1 text-xs font-black ${paymentClass(booking.payment_status)}`}>
+                            {statusLabel(booking.payment_status || "payment unknown")}
+                          </span>
                         </div>
 
-                        <div className="text-left md:text-right">
-                          <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Booking value</p>
-                          <p className="text-3xl font-black">{money(price)}</p>
-                          <p className="mt-1 text-xs text-slate-500">Payout est. {money(booking.driver_payout_amount)}</p>
-                        </div>
+                        <h2 className="mt-4 text-2xl font-black tracking-tight">
+                          {pickup?.town || pickup?.postcode || "Pickup"} → {delivery?.town || delivery?.postcode || "Delivery"}
+                        </h2>
+
+                        <p className="mt-2 text-sm text-slate-500">
+                          {booking.item_title || "Delivery job"} · {booking.item_size || "item"} · {Number(booking.approximate_weight_kg ?? 0).toFixed(0)}kg
+                        </p>
                       </div>
 
-                      <div className="mt-6 grid gap-4 md:grid-cols-3">
-                        <div className="rounded-2xl bg-slate-50 p-4">
-                          <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Customer</p>
-                          <p className="mt-2 font-black">{customerName}</p>
-                          <p className="mt-1 text-sm text-slate-600">{customerPhone}</p>
-                          <p className="mt-1 text-xs text-slate-500">{delivery?.buyer_email || pickup?.seller_email || "No email"}</p>
-                        </div>
-
-                        <div className="rounded-2xl bg-slate-50 p-4">
-                          <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Driver</p>
-                          <p className="mt-2 font-black">{driverUser?.full_name || "Unassigned"}</p>
-                          <p className="mt-1 text-sm text-slate-600">{driverUser?.phone || "No driver phone"}</p>
-                          <p className="mt-1 text-xs text-slate-500">{driver?.current_availability ? "Available" : driver ? "Unavailable" : "Needs dispatch"}</p>
-                        </div>
-
-                        <div className="rounded-2xl bg-slate-50 p-4">
-                          <p className="text-xs font-bold uppercase tracking-wide text-slate-500">ETA / Route</p>
-                          <p className="mt-2 font-black">{etaMinutes ? `${etaMinutes} min ETA` : "ETA pending"}</p>
-                          <p className="mt-1 text-sm text-slate-600">{Number(booking.route_distance_miles ?? 0).toFixed(1)} mi · {routeMinutes || 0} min</p>
-                          <p className="mt-1 text-xs text-slate-500">Created {compactDate(booking.created_at)}</p>
-                        </div>
+                      <div className="text-left md:text-right">
+                        <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Booking value</p>
+                        <p className="text-3xl font-black">{money(price)}</p>
                       </div>
                     </div>
 
-                    <div className="border-t border-slate-200 bg-slate-50 p-6 lg:border-l lg:border-t-0">
-                      <div className="grid gap-4">
-                        <div>
-                          <p className="text-xs font-black uppercase tracking-wide text-slate-500">Pickup</p>
-                          <p className="mt-1 font-semibold text-slate-900">{pickup?.address_line_1 || pickup?.address_line || "Address not supplied"}</p>
-                          <p className="text-sm text-slate-600">{pickup?.town || ""} {pickup?.postcode || ""}</p>
-                        </div>
+                    <div className="mt-6 grid gap-4 md:grid-cols-3">
+                      <div className="rounded-2xl bg-slate-50 p-4">
+                        <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Customer</p>
+                        <p className="mt-2 font-black">{customerName}</p>
+                        <p className="mt-1 text-sm text-slate-600">{customerPhone}</p>
+                      </div>
 
-                        <div>
-                          <p className="text-xs font-black uppercase tracking-wide text-slate-500">Delivery</p>
-                          <p className="mt-1 font-semibold text-slate-900">{delivery?.address_line_1 || delivery?.address_line || "Address not supplied"}</p>
-                          <p className="text-sm text-slate-600">{delivery?.town || ""} {delivery?.postcode || ""}</p>
-                        </div>
+                      <div className="rounded-2xl bg-slate-50 p-4">
+                        <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Driver</p>
+                        <p className="mt-2 font-black">{driverUser?.full_name || "Unassigned"}</p>
+                        <p className="mt-1 text-sm text-slate-600">{driverUser?.phone || "No driver phone"}</p>
+                      </div>
 
-                        <div className="rounded-2xl bg-white p-4 text-xs text-slate-600">
-                          <p><span className="font-black text-slate-900">ID:</span> {booking.id}</p>
-                          <p className="mt-1"><span className="font-black text-slate-900">Updated:</span> {compactDate(booking.updated_at)}</p>
-                        </div>
-
-                        <div className="flex flex-wrap gap-3">
-                          <Link href={`/bookings/${booking.id}`} className="rounded-full bg-slate-950 px-4 py-2 text-xs font-black text-white transition hover:bg-emerald-700">
-                            Open booking
-                          </Link>
-                          <Link href="/dispatch" className="rounded-full bg-emerald-400 px-4 py-2 text-xs font-black text-slate-950 transition hover:bg-emerald-300">
-                            Dispatch board
-                          </Link>
-                        </div>
+                      <div className="rounded-2xl bg-slate-50 p-4">
+                        <p className="text-xs font-bold uppercase tracking-wide text-slate-500">ETA / Route</p>
+                        <p className="mt-2 font-black">{etaMinutes ? `${etaMinutes} min ETA` : "ETA pending"}</p>
+                        <p className="mt-1 text-sm text-slate-600">{Number(booking.route_distance_miles ?? 0).toFixed(1)} mi · {routeMinutes || 0} min</p>
                       </div>
                     </div>
                   </div>
-                </section>
-              );
-            })}
-          </div>
-        ) : null}
 
-        <div className="mt-8 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-          <p className="text-sm font-black uppercase tracking-wide text-slate-500">Visible booking value</p>
-          <p className="mt-2 text-3xl font-black">{money(totalValue)}</p>
-          <p className="mt-2 text-sm text-slate-500">
-            This is an operational view only. Quote attempts and abandoned quote intelligence should remain visible on a separate FC quote/attempts page.
-          </p>
+                  <div className="border-t border-slate-200 bg-slate-50 p-6 lg:border-l lg:border-t-0">
+                    <div className="grid gap-4">
+                      <div>
+                        <p className="text-xs font-black uppercase tracking-wide text-slate-500">Pickup</p>
+                        <p className="mt-1 font-semibold text-slate-900">{pickup?.address_line_1 || pickup?.address_line || "Address not supplied"}</p>
+                      </div>
+
+                      <div>
+                        <p className="text-xs font-black uppercase tracking-wide text-slate-500">Delivery</p>
+                        <p className="mt-1 font-semibold text-slate-900">{delivery?.address_line_1 || delivery?.address_line || "Address not supplied"}</p>
+                      </div>
+
+                      {!booking.driver_id && booking.status === "paid_awaiting_dispatch" ? (
+                        <AssignDriverForm bookingId={booking.id} drivers={assignableDrivers} />
+                      ) : null}
+
+                      <div className="flex flex-wrap gap-3">
+                        <Link href={`/bookings/${booking.id}`} className="rounded-full bg-slate-950 px-4 py-2 text-xs font-black text-white transition hover:bg-emerald-700">
+                          Open booking
+                        </Link>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </section>
+            );
+          })}
         </div>
       </div>
     </main>
