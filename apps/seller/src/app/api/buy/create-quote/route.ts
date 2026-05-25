@@ -1,6 +1,20 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { calculateQuote } from "@door-in-four/pricing";
+import {
+  clampNumber,
+  cleanAddress,
+  cleanBoolean,
+  cleanEmail,
+  cleanEnum,
+  cleanItemSize,
+  cleanItemTitle,
+  cleanName,
+  cleanNotes,
+  cleanPhone,
+  cleanPostcode,
+  cleanTown,
+} from "@door-in-four/shared";
 import { estimateRouteFromPostcodes } from "../../../../lib/geography";
 
 const supabase = createClient(
@@ -8,27 +22,36 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || ""
 );
 
-const asNumber = (value: unknown, fallback: number) => {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : fallback;
-};
-
-const asBoolean = (value: unknown) => value === true || value === "true" || value === "on";
+const itemSizes = ["small", "medium", "large", "furniture", "van_load"] as const;
+const urgencies = ["flexible", "scheduled", "tomorrow", "same_day", "asap"] as const;
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
 
-    const pickupTown = String(body.pickupTown || "").trim();
-    const pickupPostcode = String(body.pickupPostcode || "").trim();
-    const deliveryTown = String(body.deliveryTown || "").trim();
-    const deliveryPostcode = String(body.deliveryPostcode || "").trim();
-    const itemTitle = String(body.itemTitle || "Marketplace item").trim();
-    const itemSize = String(body.itemSize || "medium");
-    const approximateWeightKg = asNumber(body.approximateWeightKg, 20);
-    const urgency = String(body.urgency || "scheduled");
-    const pickupStairsFloors = asNumber(body.pickupStairsFloors, 0);
-    const deliveryStairsFloors = asNumber(body.deliveryStairsFloors, 0);
+    const pickupTown = cleanTown(body.pickupTown);
+    const pickupPostcode = cleanPostcode(body.pickupPostcode);
+    const deliveryTown = cleanTown(body.deliveryTown);
+    const deliveryPostcode = cleanPostcode(body.deliveryPostcode);
+    const itemTitle = cleanItemTitle(body.itemTitle) || "Marketplace item";
+    const itemSize = cleanEnum(cleanItemSize(body.itemSize), itemSizes, "medium");
+    const approximateWeightKg = clampNumber(body.approximateWeightKg, 0, 500, 20);
+    const urgency = cleanEnum(body.urgency, urgencies, "scheduled");
+    const pickupStairsFloors = clampNumber(body.pickupStairsFloors, 0, 20, 0);
+    const deliveryStairsFloors = clampNumber(body.deliveryStairsFloors, 0, 20, 0);
+    const sellerName = cleanName(body.sellerName) || "Marketplace seller";
+    const sellerEmail = cleanEmail(body.sellerEmail);
+    const sellerPhone = cleanPhone(body.sellerPhone);
+    const pickupAddress = cleanAddress(body.pickupAddress);
+    const pickupNotes = cleanNotes(body.pickupNotes);
+    const buyerName = cleanName(body.buyerName) || "Buyer";
+    const buyerPhone = cleanPhone(body.buyerPhone);
+    const deliveryAddress = cleanAddress(body.deliveryAddress);
+    const deliveryNotes = cleanNotes(body.deliveryNotes);
+    const preferredPickupWindow = cleanNotes(body.preferredPickupWindow);
+    const fragile = cleanBoolean(body.fragile);
+    const requiresTwoPeople = cleanBoolean(body.requiresTwoPeople);
+    const requiresVan = cleanBoolean(body.requiresVan);
 
     if (!pickupTown || !pickupPostcode || !deliveryTown || !deliveryPostcode) {
       return NextResponse.json({ error: "Pickup and delivery town/postcode are required" }, { status: 400 });
@@ -39,14 +62,14 @@ export async function POST(request: Request) {
     const { data: pickup, error: pickupError } = await supabase
       .from("pickup_contacts")
       .insert({
-        seller_name: body.sellerName || "Marketplace seller",
-        seller_phone: body.sellerPhone || "",
-        seller_email: body.sellerEmail || "",
+        seller_name: sellerName,
+        seller_phone: sellerPhone,
+        seller_email: sellerEmail,
         town: pickupTown,
         postcode: pickupPostcode,
-        address_line_1: body.pickupAddress || "",
-        address_line: body.pickupAddress || null,
-        notes: body.pickupNotes || null,
+        address_line_1: pickupAddress,
+        address_line: pickupAddress || null,
+        notes: pickupNotes || null,
       })
       .select("id")
       .single();
@@ -58,12 +81,12 @@ export async function POST(request: Request) {
     const { data: delivery, error: deliveryError } = await supabase
       .from("delivery_addresses")
       .insert({
-        recipient_name: body.buyerName || "Buyer",
-        recipient_phone: body.buyerPhone || "",
+        recipient_name: buyerName,
+        recipient_phone: buyerPhone,
         town: deliveryTown,
         postcode: deliveryPostcode,
-        address_line_1: body.deliveryAddress || "",
-        notes: body.deliveryNotes || null,
+        address_line_1: deliveryAddress,
+        notes: deliveryNotes || null,
       })
       .select("id")
       .single();
@@ -79,11 +102,11 @@ export async function POST(request: Request) {
       approximateWeightKg,
       quantity: 1,
       urgency: urgency as any,
-      requiresVan: asBoolean(body.requiresVan),
-      fragile: asBoolean(body.fragile),
+      requiresVan,
+      fragile,
       pickupStairsFloors,
       deliveryStairsFloors,
-      requiresTwoPeople: asBoolean(body.requiresTwoPeople),
+      requiresTwoPeople,
       sameTown: pickupTown.toLowerCase() === deliveryTown.toLowerCase(),
     });
 
@@ -97,10 +120,10 @@ export async function POST(request: Request) {
         item_title: itemTitle,
         item_size: itemSize,
         approximate_weight_kg: approximateWeightKg,
-        fragile: asBoolean(body.fragile),
-        requires_two_people: asBoolean(body.requiresTwoPeople),
-        requires_van: asBoolean(body.requiresVan),
-        preferred_pickup_window: body.preferredPickupWindow || null,
+        fragile,
+        requires_two_people: requiresTwoPeople,
+        requires_van: requiresVan,
+        preferred_pickup_window: preferredPickupWindow || null,
         delivery_quote_amount: quote.totalBuyerPrice,
         driver_payout_amount: quote.driverPayoutEstimate,
         platform_fee_amount: quote.platformServiceFee,
