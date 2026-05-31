@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
+import { requireAdminRequest } from "@/lib/api-security";
 import { supabase } from "@/lib/server";
 
 export async function POST(request: Request) {
   try {
+    const auth = await requireAdminRequest(request);
+    if (auth.ok === false) return auth.response;
+
     const body = await request.json();
     const bookingId = typeof body.bookingId === "string" ? body.bookingId : "";
     const driverId = typeof body.driverId === "string" ? body.driverId : "";

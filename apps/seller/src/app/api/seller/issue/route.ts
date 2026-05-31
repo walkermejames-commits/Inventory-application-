@@ -1,11 +1,6 @@
 import crypto from "node:crypto";
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-
-const supabase = createClient(
-  process.env.SUPABASE_URL || "",
-  process.env.SUPABASE_SERVICE_ROLE_KEY || ""
-);
+import { supabase } from "@/src/lib/server";
 
 const hashToken = (token: string) => crypto.createHash("sha256").update(token).digest("hex");
 

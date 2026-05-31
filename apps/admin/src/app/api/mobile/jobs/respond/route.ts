@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireDriverRequest } from "@/lib/api-security";
 import { supabase } from "@/lib/server";
 
 export async function POST(request: Request) {
@@ -11,6 +12,8 @@ export async function POST(request: Request) {
     if (!bookingId || !driverId || !response) {
       return NextResponse.json({ error: "bookingId, driverId and response are required" }, { status: 400 });
     }
+    const auth = await requireDriverRequest(request, driverId);
+    if (auth.ok === false) return auth.response;
 
     const { data: booking, error: lookupError } = await supabase
       .from("bookings")

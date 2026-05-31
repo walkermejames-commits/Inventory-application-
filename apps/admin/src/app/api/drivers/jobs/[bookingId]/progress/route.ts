@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireDriverRequest } from "@/lib/api-security";
 import { supabase } from "@/lib/server";
 import { verifyCode } from "@/lib/security";
 import { isStatusTransitionAllowed } from "@door-in-four/shared";
@@ -10,6 +11,9 @@ type RouteContext = {
 export async function POST(request: Request, context: RouteContext) {
   const { bookingId } = await context.params;
   const { driverId, toStatus, sellerCode, buyerCode, photoPath } = await request.json();
+  if (!driverId) return NextResponse.json({ error: "driverId is required" }, { status: 400 });
+  const auth = await requireDriverRequest(request, driverId);
+  if (auth.ok === false) return auth.response;
 
   const { data: booking } = await supabase
     .from("bookings")

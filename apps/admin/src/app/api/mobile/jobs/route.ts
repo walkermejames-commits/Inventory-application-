@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireDriverRequest } from "@/lib/api-security";
 import { supabase } from "@/lib/server";
 
 export async function GET(request: Request) {
@@ -9,6 +10,8 @@ export async function GET(request: Request) {
     if (!driverId) {
       return NextResponse.json({ error: "driverId is required" }, { status: 400 });
     }
+    const auth = await requireDriverRequest(request, driverId);
+    if (auth.ok === false) return auth.response;
 
     const { data, error } = await supabase
       .from("bookings")

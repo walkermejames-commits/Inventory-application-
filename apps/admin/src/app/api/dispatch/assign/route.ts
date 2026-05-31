@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
+import { requireAdminRequest } from "@/lib/api-security";
 import { supabase } from "@/lib/server";
 
 export async function POST(request: Request) {
+  const auth = await requireAdminRequest(request);
+  if (auth.ok === false) return auth.response;
+
   const { bookingId, driverId, actorUserId } = await request.json();
   const { data: booking } = await supabase.from("bookings").select("status,payment_status").eq("id", bookingId).single();
   if (!booking) return NextResponse.json({ error: "Booking not found" }, { status: 404 });

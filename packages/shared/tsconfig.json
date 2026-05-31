@@ -2,7 +2,9 @@
   "extends": "../../tsconfig.base.json",
   "include": [
     "src",
-    "tests"
+    "tests",
+    "../config/src",
+    "../types/src"
   ],
   "compilerOptions": {
     "composite": true

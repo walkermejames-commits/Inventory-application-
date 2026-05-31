@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireAdminRequest } from "@/lib/api-security";
 import { stripe, supabase } from "@/lib/server";
 import { computeCancellationFee } from "@door-in-four/shared";
 
@@ -7,6 +8,9 @@ type RouteContext = {
 };
 
 export async function POST(request: Request, context: RouteContext) {
+  const auth = await requireAdminRequest(request);
+  if (auth.ok === false) return auth.response;
+
   const { paymentId } = await context.params;
   const { amount, reason, actorUserId } = await request.json();
 
