@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { assignOperationsDriverAction } from "@/app/actions/driver-assignment";
 
 type DriverOption = {
   id: string;
@@ -33,21 +34,13 @@ export default function AssignDriverControl({ bookingId, currentDriverId, driver
       setLoading(true);
       setMessage(null);
 
-      const response = await fetch("/api/operations/assign-driver", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          bookingId,
-          driverId: selectedDriver,
-        }),
+      const result = await assignOperationsDriverAction({
+        bookingId,
+        driverId: selectedDriver,
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data?.error || "Could not assign driver");
+      if (!result.success) {
+        throw new Error(result.error || "Could not assign driver");
       }
 
       setMessage("Driver assigned successfully.");

@@ -33,6 +33,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Only newly assigned jobs can be accepted or rejected" }, { status: 400 });
     }
 
+    const now = new Date().toISOString();
+
     if (response === "rejected") {
       const { data: updated, error: updateError } = await supabase
         .from("bookings")
@@ -56,6 +58,20 @@ export async function POST(request: Request) {
         note: `Driver ${driverId} rejected assignment`,
       });
 
+      await supabase
+        .from("dispatch_timers")
+        .update({
+          status: "cancelled",
+          updated_at: now,
+          metadata: {
+            source: "driver_response",
+            response: "rejected",
+          },
+        })
+        .eq("booking_id", bookingId)
+        .eq("timer_type", "assignment_response")
+        .eq("status", "active");
+
       return NextResponse.json({ success: true, booking: updated });
     }
 
@@ -77,6 +93,20 @@ export async function POST(request: Request) {
       actor_role: "driver",
       note: `Driver ${driverId} accepted assignment`,
     });
+
+    await supabase
+      .from("dispatch_timers")
+      .update({
+        status: "cancelled",
+        updated_at: now,
+        metadata: {
+          source: "driver_response",
+          response: "accepted",
+        },
+      })
+      .eq("booking_id", bookingId)
+      .eq("timer_type", "assignment_response")
+      .eq("status", "active");
 
     return NextResponse.json({ success: true, booking: updated });
   } catch (error) {

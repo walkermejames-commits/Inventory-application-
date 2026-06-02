@@ -28,7 +28,9 @@ export const emailSchema = z.object({
 
 const serverSecretSchema = z.object({
   ADMIN_API_SECRET: z.string().min(24, "ADMIN_API_SECRET must be at least 24 characters").optional(),
-  DISPATCH_REFLEX_SECRET: z.string().min(24, "DISPATCH_REFLEX_SECRET must be at least 24 characters").optional()
+  DISPATCH_REFLEX_SECRET: z.string().min(24, "DISPATCH_REFLEX_SECRET must be at least 24 characters").optional(),
+  DEMO_DRIVER_ID: z.string().uuid("DEMO_DRIVER_ID must be a driver profile UUID").optional(),
+  DEMO_DRIVER_API_SECRET: z.string().min(24, "DEMO_DRIVER_API_SECRET must be at least 24 characters").optional()
 });
 
 const sellerSecuritySchema = z.object({

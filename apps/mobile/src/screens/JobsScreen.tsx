@@ -15,15 +15,20 @@ import { colors } from '../theme/colors';
 
 const adminApiUrl = process.env.EXPO_PUBLIC_ADMIN_API_URL || '';
 const demoDriverId = process.env.EXPO_PUBLIC_DEMO_DRIVER_ID || '';
+const demoDriverSecret = process.env.EXPO_PUBLIC_DEMO_DRIVER_API_SECRET || '';
 const pollIntervalMs = 10000;
 
 async function loadAssignedJobs(): Promise<Booking[]> {
-  if (!adminApiUrl || !demoDriverId) {
+  if (!adminApiUrl || !demoDriverId || !demoDriverSecret) {
     return [];
   }
 
   const baseUrl = adminApiUrl.replace(/\/$/, '');
-  const response = await fetch(`${baseUrl}/api/mobile/jobs?driverId=${encodeURIComponent(demoDriverId)}`);
+  const response = await fetch(`${baseUrl}/api/mobile/jobs?driverId=${encodeURIComponent(demoDriverId)}`, {
+    headers: {
+      'x-demo-driver-secret': demoDriverSecret,
+    },
+  });
   const data = await response.json();
 
   if (!response.ok) {
@@ -70,7 +75,7 @@ export default function JobsScreen({ navigation }: any) {
     setRefreshing(false);
   };
 
-  const missingConfig = !adminApiUrl || !demoDriverId;
+  const missingConfig = !adminApiUrl || !demoDriverId || !demoDriverSecret;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -108,7 +113,7 @@ export default function JobsScreen({ navigation }: any) {
         <View style={styles.warningBox}>
           <Text style={styles.warningTitle}>Driver feed not configured</Text>
           <Text style={styles.warningText}>
-            Add EXPO_PUBLIC_ADMIN_API_URL and EXPO_PUBLIC_DEMO_DRIVER_ID to the mobile app environment.
+            Add EXPO_PUBLIC_ADMIN_API_URL, EXPO_PUBLIC_DEMO_DRIVER_ID, and EXPO_PUBLIC_DEMO_DRIVER_API_SECRET to the mobile app environment.
           </Text>
         </View>
       ) : null}
