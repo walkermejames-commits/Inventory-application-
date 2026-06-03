@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
+import { requireReflexSecret } from "@/lib/api-security";
 import { supabase } from "@/lib/server";
-
-const REFLEX_SECRET = process.env.DISPATCH_REFLEX_SECRET || "";
 
 type DispatchTimer = {
   id: string;
@@ -11,15 +10,6 @@ type DispatchTimer = {
   escalation_level: number | null;
   metadata: Record<string, unknown> | null;
 };
-
-function isAuthorised(request: Request) {
-  if (!REFLEX_SECRET) return true;
-
-  const headerSecret = request.headers.get("x-dispatch-reflex-secret") || "";
-  const bearer = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") || "";
-
-  return headerSecret === REFLEX_SECRET || bearer === REFLEX_SECRET;
-}
 
 function nextEscalationLevel(timer: DispatchTimer) {
   return Number(timer.escalation_level || 0) + 1;
@@ -65,9 +55,8 @@ function interventionFor(timer: DispatchTimer) {
 
 export async function POST(request: Request) {
   try {
-    if (!isAuthorised(request)) {
-      return NextResponse.json({ error: "Unauthorised" }, { status: 401 });
-    }
+    const auth = requireReflexSecret(request);
+    if (auth.ok === false) return auth.response;
 
     const now = new Date().toISOString();
 

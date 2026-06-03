@@ -1,12 +1,7 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 import crypto from "node:crypto";
 import { calculateQuote } from "@door-in-four/pricing";
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || "",
-  process.env.SUPABASE_SERVICE_ROLE_KEY || ""
-);
+import { supabase } from "@/src/lib/server";
 
 const hashToken = (token: string) => crypto.createHash("sha256").update(token).digest("hex");
 

@@ -1,11 +1,6 @@
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
-import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || '',
-  process.env.SUPABASE_SERVICE_ROLE_KEY || ''
-);
+import { supabase } from '@/src/lib/server';
 
 const getMoneyValue = (value: unknown): number | null => {
   const parsed = Number(value);

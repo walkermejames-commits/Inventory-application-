@@ -26,6 +26,17 @@ export const emailSchema = z.object({
   EMAIL_PROVIDER_API_KEY: z.string().optional()
 });
 
+const serverSecretSchema = z.object({
+  ADMIN_API_SECRET: z.string().min(24, "ADMIN_API_SECRET must be at least 24 characters").optional(),
+  DISPATCH_REFLEX_SECRET: z.string().min(24, "DISPATCH_REFLEX_SECRET must be at least 24 characters").optional(),
+  DEMO_DRIVER_ID: z.string().uuid("DEMO_DRIVER_ID must be a driver profile UUID").optional(),
+  DEMO_DRIVER_API_SECRET: z.string().min(24, "DEMO_DRIVER_API_SECRET must be at least 24 characters").optional()
+});
+
+const sellerSecuritySchema = z.object({
+  SELLER_API_SECRET: z.string().min(24, "SELLER_API_SECRET must be at least 24 characters").optional()
+});
+
 export const appUrlSchema = z.object({
   APP_URL: z.string().url(),
   MOBILE_DEEP_LINK_URL: z.string().min(1),
@@ -33,8 +44,8 @@ export const appUrlSchema = z.object({
   ADMIN_APP_URL: z.string().url()
 });
 
-const adminSchema = baseSchema.merge(supabaseSchema).merge(stripeSchema).merge(mapsSchema).merge(emailSchema).merge(appUrlSchema);
-const sellerSchema = baseSchema.merge(supabaseSchema).merge(appUrlSchema);
+const adminSchema = baseSchema.merge(supabaseSchema).merge(stripeSchema).merge(mapsSchema).merge(emailSchema).merge(appUrlSchema).merge(serverSecretSchema);
+const sellerSchema = baseSchema.merge(supabaseSchema).merge(appUrlSchema).merge(sellerSecuritySchema);
 const mobileSchema = baseSchema.merge(supabaseSchema.pick({ SUPABASE_URL: true, SUPABASE_ANON_KEY: true })).merge(appUrlSchema.pick({ MOBILE_DEEP_LINK_URL: true, APP_URL: true }));
 const dbSchema = baseSchema.merge(supabaseSchema);
 

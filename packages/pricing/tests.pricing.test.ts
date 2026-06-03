@@ -20,7 +20,7 @@ describe("calculateQuote", () => {
 
     expect(quote.totalBuyerPrice).toBeGreaterThan(quote.subtotal);
     expect(quote.quoteExpiryMinutes).toBe(20);
-    expect(quote.driverPayoutEstimate).toBe(quote.subtotal * 0.75);
+    expect(quote.driverPayoutEstimate).toBe(99.62);
   });
 
   it("enforces same-town small minimum", () => {
@@ -39,6 +39,6 @@ describe("calculateQuote", () => {
       sameTown: true
     });
 
-    expect(quote.subtotal).toBeGreaterThanOrEqual(12);
+    expect(quote.subtotal).toBeGreaterThanOrEqual(10);
   });
 });

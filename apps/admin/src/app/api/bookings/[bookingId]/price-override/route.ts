@@ -1,10 +1,14 @@
 import { NextResponse } from "next/server";
+import { requireAdminRequest } from "@/lib/api-security";
 import { supabase } from "@/lib/server";
 
 
 type RouteContext = { params: Promise<{ bookingId: string }> };
 
 export async function POST(request: Request, context: RouteContext) {
+  const auth = await requireAdminRequest(request);
+  if (auth.ok === false) return auth.response;
+
   const { bookingId } = await context.params;
   const { newAcceptedPrice, actorUserId, reason } = await request.json();
   const { data: booking } = await supabase

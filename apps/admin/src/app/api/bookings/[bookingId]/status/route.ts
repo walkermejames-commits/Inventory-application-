@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server";
 import { isStatusTransitionAllowed } from "@door-in-four/shared";
+import { requireAdminRequest } from "@/lib/api-security";
 import { supabase } from "@/lib/server";
 
 export async function POST(
   request: Request,
   context: { params: Promise<{ bookingId: string }> }
 ) {
+  const auth = await requireAdminRequest(request);
+  if (auth.ok === false) return auth.response;
+
   const { bookingId } = await context.params;
   const { toStatus, actorUserId, actorRole, note, metadata } = await request.json();
 

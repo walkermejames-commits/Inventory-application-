@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireDriverRequest } from "@/lib/api-security";
 import { supabase } from "@/lib/server";
 
 export async function POST(request: Request) {
@@ -11,6 +12,8 @@ export async function POST(request: Request) {
     if (!bookingId || !driverId || !response) {
       return NextResponse.json({ error: "bookingId, driverId and response are required" }, { status: 400 });
     }
+    const auth = await requireDriverRequest(request, driverId);
+    if (auth.ok === false) return auth.response;
 
     const { data: booking, error: lookupError } = await supabase
       .from("bookings")
@@ -29,6 +32,8 @@ export async function POST(request: Request) {
     if (booking.status !== "driver_assigned") {
       return NextResponse.json({ error: "Only newly assigned jobs can be accepted or rejected" }, { status: 400 });
     }
+
+    const now = new Date().toISOString();
 
     if (response === "rejected") {
       const { data: updated, error: updateError } = await supabase
@@ -53,6 +58,20 @@ export async function POST(request: Request) {
         note: `Driver ${driverId} rejected assignment`,
       });
 
+      await supabase
+        .from("dispatch_timers")
+        .update({
+          status: "cancelled",
+          updated_at: now,
+          metadata: {
+            source: "driver_response",
+            response: "rejected",
+          },
+        })
+        .eq("booking_id", bookingId)
+        .eq("timer_type", "assignment_response")
+        .eq("status", "active");
+
       return NextResponse.json({ success: true, booking: updated });
     }
 
@@ -74,6 +93,20 @@ export async function POST(request: Request) {
       actor_role: "driver",
       note: `Driver ${driverId} accepted assignment`,
     });
+
+    await supabase
+      .from("dispatch_timers")
+      .update({
+        status: "cancelled",
+        updated_at: now,
+        metadata: {
+          source: "driver_response",
+          response: "accepted",
+        },
+      })
+      .eq("booking_id", bookingId)
+      .eq("timer_type", "assignment_response")
+      .eq("status", "active");
 
     return NextResponse.json({ success: true, booking: updated });
   } catch (error) {

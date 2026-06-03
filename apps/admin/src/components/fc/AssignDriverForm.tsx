@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { assignDispatchDriverAction } from "@/app/actions/driver-assignment";
 
 export type AssignableDriver = {
   id: string;
@@ -29,16 +30,10 @@ export default function AssignDriverForm({ bookingId, drivers }: Props) {
     setError(null);
 
     try {
-      const response = await fetch("/api/dispatch/assign-driver", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ bookingId, driverId }),
-      });
+      const result = await assignDispatchDriverAction({ bookingId, driverId });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data?.error || "Could not assign driver");
+      if (!result.success) {
+        throw new Error(result.error || "Could not assign driver");
       }
 
       router.refresh();

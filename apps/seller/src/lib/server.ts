@@ -1,17 +1,17 @@
 import { createClient } from "@supabase/supabase-js";
 
-// Seller app uses service role for server-side operations
-// Make sure SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are set in Render
-
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-if (!supabaseUrl || !supabaseServiceKey) {
-  console.warn("Missing Supabase environment variables in seller app");
+function requireEnv(name: string) {
+  const value = process.env[name];
+  if (!value) throw new Error(`${name} is required`);
+  return value;
 }
 
-export const supabase = createClient(supabaseUrl || "", supabaseServiceKey || "", {
+const supabaseUrl = requireEnv("SUPABASE_URL");
+const supabaseServiceKey = requireEnv("SUPABASE_SERVICE_ROLE_KEY");
+
+export const supabase = createClient(supabaseUrl, supabaseServiceKey, {
   auth: {
     persistSession: false,
+    autoRefreshToken: false,
   },
 });
