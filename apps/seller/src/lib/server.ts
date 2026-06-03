@@ -1,17 +1,33 @@
 import { createClient } from "@supabase/supabase-js";
 
-// Seller app uses service role for server-side operations
-// Make sure SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are set in Render
+type SellerSupabaseClient = any;
 
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+let cachedSupabase: SellerSupabaseClient | null = null;
 
-if (!supabaseUrl || !supabaseServiceKey) {
-  console.warn("Missing Supabase environment variables in seller app");
+function requireEnv(name: string) {
+  const value = process.env[name];
+  if (!value) throw new Error(`${name} is required`);
+  return value;
 }
 
-export const supabase = createClient(supabaseUrl || "", supabaseServiceKey || "", {
-  auth: {
-    persistSession: false,
+export function getSupabase() {
+  if (!cachedSupabase) {
+    cachedSupabase = createClient(requireEnv("SUPABASE_URL"), requireEnv("SUPABASE_SERVICE_ROLE_KEY"), {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+      },
+    });
+  }
+
+  return cachedSupabase;
+}
+
+export const supabase = new Proxy({} as SellerSupabaseClient, {
+  get(_target, property) {
+    const client = getSupabase();
+    const value = Reflect.get(client, property);
+
+    return typeof value === "function" ? value.bind(client) : value;
   },
 });

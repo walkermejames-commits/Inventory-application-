@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 import { calculateQuote } from "@door-in-four/pricing";
+import { supabase } from "@/src/lib/server";
 import {
   clampNumber,
   cleanAddress,
@@ -16,11 +16,6 @@ import {
   cleanTown,
 } from "@door-in-four/shared";
 import { estimateRouteFromPostcodes } from "../../../../lib/geography";
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || "",
-  process.env.SUPABASE_SERVICE_ROLE_KEY || ""
-);
 
 const itemSizes = ["small", "medium", "large", "furniture", "van_load"] as const;
 const urgencies = ["flexible", "scheduled", "tomorrow", "same_day", "asap"] as const;
