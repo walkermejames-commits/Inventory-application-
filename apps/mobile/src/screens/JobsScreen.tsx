@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   FlatList,
   RefreshControl,
@@ -8,41 +8,21 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 
 import JobCard from '../components/JobCard';
 import { Booking } from '../types/booking';
 import { colors } from '../theme/colors';
+import { fetchAssignedJobs, getDriverApiConfigStatus } from '../lib/adminApi';
 
-const adminApiUrl = process.env.EXPO_PUBLIC_ADMIN_API_URL || '';
-const demoDriverId = process.env.EXPO_PUBLIC_DEMO_DRIVER_ID || '';
-const demoDriverSecret = process.env.EXPO_PUBLIC_DEMO_DRIVER_API_SECRET || '';
 const pollIntervalMs = 10000;
-
-async function loadAssignedJobs(): Promise<Booking[]> {
-  if (!adminApiUrl || !demoDriverId || !demoDriverSecret) {
-    return [];
-  }
-
-  const baseUrl = adminApiUrl.replace(/\/$/, '');
-  const response = await fetch(`${baseUrl}/api/mobile/jobs?driverId=${encodeURIComponent(demoDriverId)}`, {
-    headers: {
-      'x-demo-driver-secret': demoDriverSecret,
-    },
-  });
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data?.error || 'Could not load assigned jobs');
-  }
-
-  return data.jobs || [];
-}
 
 export default function JobsScreen({ navigation }: any) {
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [jobs, setJobs] = useState<Booking[]>([]);
+  const apiConfig = getDriverApiConfigStatus();
 
   const activeJobs = useMemo(
     () => jobs.filter(job => job.status !== 'completed' && job.status !== 'cancelled'),
@@ -51,7 +31,13 @@ export default function JobsScreen({ navigation }: any) {
 
   const fetchJobs = async () => {
     try {
-      const nextJobs = await loadAssignedJobs();
+      if (!apiConfig.configured) {
+        setJobs([]);
+        setError(null);
+        return;
+      }
+
+      const nextJobs = await fetchAssignedJobs();
       setJobs(nextJobs);
       setError(null);
     } catch (err) {
@@ -69,13 +55,19 @@ export default function JobsScreen({ navigation }: any) {
     return () => clearInterval(interval);
   }, []);
 
+  useFocusEffect(
+    useCallback(() => {
+      fetchJobs();
+    }, [])
+  );
+
   const onRefresh = async () => {
     setRefreshing(true);
     await fetchJobs();
     setRefreshing(false);
   };
 
-  const missingConfig = !adminApiUrl || !demoDriverId || !demoDriverSecret;
+  const missingConfig = !apiConfig.configured;
 
   return (
     <SafeAreaView style={styles.container}>
