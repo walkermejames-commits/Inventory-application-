@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 const adminLinks = [
+  { href: "/operations", label: "FC Operations Board", description: "Live jobs, timers, interventions and operational events." },
   { href: "/dispatch", label: "FC Dispatch", description: "Driver map, active jobs and launch-zone coverage." },
   { href: "/get-a-quote", label: "Create Quote", description: "Create and save customer delivery quotes." },
   { href: "/quotes", label: "Quotes / Quote Query", description: "Review and search quote records." },
