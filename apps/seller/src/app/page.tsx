@@ -3,6 +3,10 @@ import Link from "next/link";
 export default function PublicLanding() {
   return (
     <main className="min-h-screen bg-[#0a0f1e] text-white">
+      <div className="border-b border-emerald-300/20 bg-emerald-400/10 px-6 py-3 text-center text-sm font-bold text-emerald-100">
+        Buyer quote flow v2 is live at <Link href="/buy" className="underline decoration-emerald-200 underline-offset-4">/buy</Link>
+      </div>
+
       <div className="relative overflow-hidden border-b border-white/10">
         <div className="absolute inset-0 bg-[radial-gradient(#1f2937_1px,transparent_1px)] bg-[length:4px_4px] opacity-40"></div>
 
@@ -73,6 +77,10 @@ export default function PublicLanding() {
               >
                 Start buyer booking
               </Link>
+
+              <p className="mt-4 text-sm font-semibold text-emerald-100/80">
+                Direct test route: <Link href="/buy" className="underline decoration-emerald-200 underline-offset-4">/buy</Link>
+              </p>
             </div>
           </div>
         </div>
@@ -100,6 +108,10 @@ export default function PublicLanding() {
             </div>
           ))}
         </div>
+
+        <p className="mt-12 text-center text-[11px] font-medium text-slate-700">
+          Seller landing deploy marker: buyer quote flow v2
+        </p>
       </section>
     </main>
   );
