@@ -1,130 +1,104 @@
-# Door in Four (Monorepo)
+# Door in Four (Monorepo) - Buyer-Led Collection & Delivery MVP
 
-Production-focused MVP for a buyer-led local collection and delivery service.
+Production-focused MVP for a buyer-led local collection and delivery service. Tunbridge Wells pilot launch ready.
 
-## 1) Monorepo layout
+## Monorepo Audit (what works now)
 
-- `apps/mobile` — Expo React Native app for buyer + driver workflow.
-- `apps/admin` — Next.js admin/dispatch dashboard + operational APIs.
-- `apps/seller` — Next.js secure seller collection link flow.
-- `packages/config` — Zod environment loaders (`loadAdminEnv`, `loadSellerEnv`, `loadMobileEnv`, `loadDbEnv`).
-- `packages/types` — shared domain types/status enums.
-- `packages/shared` — workflow guards and platform helpers.
-- `packages/pricing` — quote/pricing engine.
-- `packages/db` — SQL migrations and idempotent seed.
-- `packages/ui` — shared UI/brand primitives.
+**Structure (clean & testable):**
+- `apps/admin` (Next.js @ port 3001): Main pilot control room dashboard. Routes: /bookings (list + status/payment/proof/payout), /dispatch, /operations (driver assign), /quotes, /get-a-quote. APIs for all workflow steps.
+- `apps/seller` (Next.js @ port 3002): Secure seller links + buyer flows. /sell (create token link for shop owners - simple UI), /buy, /buyer/[token], /checkout, /quote, /track. Plain language buyer walkthrough in buy flow.
+- `apps/mobile` (Expo RN): Driver + buyer mobile screens (jobs, earnings, proof photos, onboarding).
+- `packages/config`: Zod env validation for all apps.
+- `packages/types`: BookingStatus, PaymentStatus, ItemSize, schemas.
+- `packages/shared`: Workflow guards (isStatusTransitionAllowed, canDispatch, canPayQuote, canSetPayoutReady, verifyHandover/Delivery, clean* sanitizers), security.
+- `packages/pricing`: calculateQuote engine + tests.
+- `packages/db`: Migrations (init, hardening, constraints, pickup email) + idempotent seed with Tunbridge Wells data.
+- `packages/ui`: Basic components.
 
-## 2) Package manager reliability (pnpm + fallback)
+**What works:**
+- Full happy path: quote create/accept -> payment intent -> Stripe webhook paid transition -> admin dispatch/assign driver -> driver progress/proof (code+photo) -> completed -> payout_ready.
+- Type-safe with Zod + TS.
+- pnpm workspaces with corepack pinned.
+- Supabase + Stripe integration (webhooks, Connect payouts path described).
+- Seeded launch data for Kent towns.
+- Tests in pricing + shared (workflow guards).
 
-### Preferred (Corepack + pinned pnpm)
+**Current limitations (documented for James):**
+- Mobile is Expo scaffold (full e2e needs device/CI farm).
+- No real money movement yet (test mode Stripe).
+- Pilot scope: Tunbridge Wells + fringe only.
+- Seller app serves dual seller/buyer UI (future split possible).
+- Some packages use echo for build (non-critical libs).
+
+## Exact Local Setup (run these in order)
 
 ```bash
+# 1. Pull latest
+git pull origin main
+
+# 2. Corepack + pnpm@9.15.4
 corepack enable
 corepack prepare pnpm@9.15.4 --activate
+
+# 3. Install (pnpm first, npm fallback if needed)
 pnpm install
-```
+# or: npm run install:npm-fallback
 
-If Corepack cannot fetch due network/proxy restrictions, configure an npm proxy mirror first or pre-install pnpm in your CI image.
-
-### npm fallback (best-effort)
-
-```bash
-npm run install:npm-fallback
-```
-
-> Notes:
-> - Workspaces are pnpm-first; npm fallback helps in constrained environments but pnpm is recommended for consistent lockfile behavior.
-
-### CI recommendation
-
-```bash
-corepack enable
-corepack prepare pnpm@9.15.4 --activate
-pnpm install --frozen-lockfile=false
+# 4. Checks (must all succeed)
 pnpm typecheck
 pnpm test
 pnpm build
-```
 
-## 3) Environment setup
+# 5. Launch checklist command
+pnpm launch:checklist
 
-Copy env templates:
-
-```bash
-cp .env.example .env
-cp apps/admin/.env.example apps/admin/.env.local
-cp apps/seller/.env.example apps/seller/.env.local
-cp apps/mobile/.env.example apps/mobile/.env
-```
-
-Required env vars are validated at startup using Zod. Missing values throw descriptive errors.
-
-## 4) Supabase setup
-
-1. Create project.
-2. Run migrations in order:
-   - `packages/db/migrations/001_init.sql`
-   - `packages/db/migrations/002_hardening.sql`
-   - `packages/db/migrations/003_constraints.sql`
-3. Seed launch data:
-
-```bash
+# 6. Seed Tunbridge Wells data (includes towns, users, sample bookings)
 pnpm db:seed
+
+# 7. Supabase: apply migrations manually in SQL editor if not done (see packages/db/migrations/)
+
+# 8. Stripe setup
+# - Add STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET to env files
+# - stripe login && stripe listen --forward-to localhost:3001/api/webhooks/stripe
+# - Use test card 4242 4242 4242 4242
 ```
 
-## 5) Stripe setup
-
-1. Add Stripe keys into `.env` / admin env.
-2. Start webhook forwarder:
+## Run the apps
 
 ```bash
-stripe listen --forward-to localhost:3001/api/webhooks/stripe
-```
+# Admin pilot control room (main dashboard)
+pnpm dev:admin   # http://localhost:3001  -> /bookings, /dispatch, /operations
 
-3. Test card: `4242 4242 4242 4242`.
+# Seller (shop owner secure links + buyer entry)
+pnpm dev:seller  # http://localhost:3002  -> /sell (create link), /buy (buyer walkthrough)
 
-## 6) Running locally
-
-```bash
-pnpm dev:admin
-pnpm dev:seller
+# Mobile (driver/buyer)
 pnpm dev:mobile
 ```
 
-## 7) Build / checks
+## Buyer-led flow (plain language walkthrough for buyer)
+1. Get quote: Enter pickup/delivery towns/postcodes, item details, urgency -> instant price breakdown.
+2. Accept quote: Locks price, creates booking awaiting payment.
+3. Pay securely: Stripe intent (test card works).
+4. Track: Real-time status updates, driver assigned, proof photos on delivery.
+5. Complete: Rate & confirm handover code + photo.
 
-```bash
-pnpm typecheck
-pnpm test
-pnpm build:admin
-pnpm build:seller
-```
+Shop owner (seller) secure link: Simple /sell page generates unique token link. Share with buyer or use for collection requests. No complex login needed for basic use.
 
-## 8) End-to-end operational happy path (current implementation)
+## Admin Pilot Control Room
+Use /bookings for overview of all: payment status, current booking status, driver assignment button, proof status (photos/codes), payout-ready flag.
+/dispatch and /operations for live assignment and monitoring.
 
-1. Buyer creates quote (`POST /api/quotes`).
-2. Buyer accepts quote (`POST /api/quotes/:quoteId/accept`) -> booking locked in `awaiting_payment`.
-3. Buyer starts payment intent (`POST /api/payments/create-intent`).
-4. Stripe webhook marks payment `paid` and booking `paid_awaiting_dispatch`.
-5. Admin assigns driver (`POST /api/dispatch/assign`).
-6. Driver updates progression (`POST /api/drivers/jobs/:bookingId/progress`) with required pickup/delivery code + proof paths.
-7. On completion, payout row marked `payout_ready`.
-8. Admin triggers payout (`POST /api/payouts/:bookingId/trigger`) if Stripe Connect configured.
+## Updated Tunbridge Wells Launch Data
+Seeded automatically via pnpm db:seed:
+- Towns: Royal Tunbridge Wells, Southborough, Tonbridge, Paddock Wood, Crowborough, Sevenoaks, Maidstone fringe
+- Service zone, pricing rules, sample users (admin, buyer, approved/pending drivers), vehicle, quotes, bookings in various states (paid_awaiting_dispatch, in progress, completed, disputed).
 
-## 9) Tunbridge Wells launch checklist
+## Launch Checklist Command
+Run: pnpm launch:checklist
+(Prints full pre-flight steps including the above.)
 
-- [ ] Tunbridge Wells launch zone exists and active.
-- [ ] Launch towns seeded: Royal Tunbridge Wells, Southborough, Tonbridge, Paddock Wood, Crowborough, Sevenoaks, Maidstone fringe.
-- [ ] One approved small van driver available.
-- [ ] Stripe webhook configured and verified.
-- [ ] Test paid booking visible in admin `/bookings`.
-- [ ] Seller secure link validates token.
-- [ ] Pickup + delivery proof photos create `photos` records.
-- [ ] Booking completion creates payout-ready record.
+## Supabase + Stripe + Limitations
+See sections above. For production: set RLS policies, real Stripe Connect accounts for drivers, monitoring.
 
-## 10) Deployment notes
-
-- Deploy `apps/admin` and `apps/seller` as separate Next.js services.
-- Use EAS for `apps/mobile` builds.
-- Configure Supabase Storage buckets and RLS policies per role.
-- Set Sentry and email provider in production.
+All checks (typecheck/test/build) now pass with the added workflow tests covering quote acceptance, payment/webhook transitions, dispatch, and driver proof completion.

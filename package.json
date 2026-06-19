@@ -21,7 +21,8 @@
     "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck",
     "db:migrate": "node packages/db/scripts/apply-migrations.mjs",
-    "db:seed": "node packages/db/seed/seed.mjs"
+    "db:seed": "node packages/db/seed/seed.mjs",
+    "launch:checklist": "node scripts/launch-checklist.mjs"
   },
   "devDependencies": {
     "typescript": "^5.6.3"
