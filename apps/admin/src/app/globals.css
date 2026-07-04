@@ -1,3 +1,45 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+:root {
+  color-scheme: dark;
+  --duck-background-primary: #080606;
+  --duck-background-panel: #151110;
+  --duck-background-panel-soft: #1d1715;
+  --duck-velvet: #5b1117;
+  --duck-velvet-dark: #1b0709;
+  --duck-gold: #c9a45d;
+  --duck-bronze: #6d5736;
+  --duck-cream: #f4ead7;
+  --duck-text-muted: #b8aa95;
+  --duck-success: #6f9f72;
+  --duck-warning: #c58b43;
+  --duck-danger: #a84b4b;
+  --duck-radius: 8px;
+  --duck-shadow: 0 18px 48px rgba(0, 0, 0, 0.34);
+}
+
+body {
+  margin: 0;
+  background:
+    radial-gradient(circle at top left, rgba(91, 17, 23, 0.34), transparent 34rem),
+    radial-gradient(circle at top right, rgba(201, 164, 93, 0.12), transparent 28rem),
+    linear-gradient(180deg, var(--duck-background-primary), #0d0908 44%, #080606);
+  color: var(--duck-cream);
+}
+
+.duck-mark {
+  display: inline-flex;
+  width: 2.25rem;
+  height: 2.25rem;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(201, 164, 93, 0.58);
+  border-radius: 999px;
+  background: linear-gradient(145deg, rgba(91, 17, 23, 0.82), rgba(21, 17, 16, 0.96));
+  color: var(--duck-gold);
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
