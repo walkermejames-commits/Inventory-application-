@@ -9,6 +9,7 @@ import JobDetailScreen from './src/screens/JobDetailScreen';
 import EarningsScreen from './src/screens/EarningsScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
 import OnboardingScreen from './src/screens/OnboardingScreen';
+import { colors } from './src/theme/colors';
 
 export type RootStackParamList = {
   Login: undefined;
@@ -28,10 +29,10 @@ export default function App() {
       <Stack.Navigator
         initialRouteName="Login"
         screenOptions={{
-          headerStyle: { backgroundColor: '#111111' },
-          headerTintColor: '#ffffff',
+          headerStyle: { backgroundColor: colors.surface },
+          headerTintColor: colors.text,
           headerTitleStyle: { fontWeight: '900' },
-          contentStyle: { backgroundColor: '#0a0a0a' },
+          contentStyle: { backgroundColor: colors.background },
         }}
       >
         <Stack.Screen

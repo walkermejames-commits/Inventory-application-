@@ -4,7 +4,7 @@ import "./globals.css";
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
-      <body className="bg-[#0a0f1e] text-white antialiased">
+      <body className="bg-[var(--duck-background-primary)] text-[var(--duck-cream)] antialiased">
         {children}
       </body>
     </html>
