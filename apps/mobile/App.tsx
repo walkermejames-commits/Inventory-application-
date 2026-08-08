@@ -9,15 +9,9 @@ import JobDetailScreen from './src/screens/JobDetailScreen';
 import EarningsScreen from './src/screens/EarningsScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
 import OnboardingScreen from './src/screens/OnboardingScreen';
+import type { RootStackParamList } from './src/navigation/types';
 
-export type RootStackParamList = {
-  Login: undefined;
-  Onboarding: undefined;
-  Jobs: undefined;
-  JobDetail: { bookingId?: string } | undefined;
-  Earnings: undefined;
-  Profile: undefined;
-};
+export type { RootStackParamList };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 

@@ -92,6 +92,7 @@ export const ACTIVE_DRIVER_STATUSES: BookingStatus[] = [
   'driver_en_route_to_delivery',
   'driver_arrived_at_delivery',
   'delivery_verified',
+  'delivered',
 ];
 
 export const isPaidBooking = (booking: Pick<Booking, 'payment_status' | 'status'>) =>

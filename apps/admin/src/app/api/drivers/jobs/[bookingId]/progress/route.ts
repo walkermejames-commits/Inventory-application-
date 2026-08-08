@@ -102,6 +102,7 @@ export async function POST(request: Request, context: RouteContext) {
   });
 
   // Payout ready only after a legal step into completed (must have walked verification chain)
+  let paymentStatus = booking.payment_status;
   if (toStatus === "completed") {
     const { data: payout } = await supabase
       .from("payouts")
@@ -126,7 +127,60 @@ export async function POST(request: Request, context: RouteContext) {
       .from("bookings")
       .update({ payment_status: "payout_ready" })
       .eq("id", booking.id);
+
+    paymentStatus = "payout_ready";
   }
 
-  return NextResponse.json({ success: true });
+  const { data: refreshed } = await supabase
+    .from("bookings")
+    .select(
+      `
+      id,status,payment_status,driver_id,item_title,item_size,approximate_weight_kg,fragile,requires_two_people,requires_van,delivery_quote_amount,accepted_price,driver_payout_amount,created_at,updated_at,
+      pickup_contacts (town, postcode, address_line_1),
+      delivery_addresses (town, postcode, address_line_1)
+    `
+    )
+    .eq("id", booking.id)
+    .single();
+
+  const pickup = Array.isArray(refreshed?.pickup_contacts)
+    ? refreshed?.pickup_contacts[0]
+    : refreshed?.pickup_contacts;
+  const delivery = Array.isArray(refreshed?.delivery_addresses)
+    ? refreshed?.delivery_addresses[0]
+    : refreshed?.delivery_addresses;
+
+  return NextResponse.json({
+    success: true,
+    booking: refreshed
+      ? {
+          id: refreshed.id,
+          status: refreshed.status,
+          payment_status: refreshed.payment_status || paymentStatus,
+          driver_id: refreshed.driver_id,
+          pickup_town: pickup?.town || "Pickup",
+          pickup_postcode: pickup?.postcode || null,
+          pickup_address_line: pickup?.address_line_1 || null,
+          delivery_town: delivery?.town || "Delivery",
+          delivery_postcode: delivery?.postcode || null,
+          delivery_address_line: delivery?.address_line_1 || null,
+          item_title: refreshed.item_title || "Delivery job",
+          item_size: refreshed.item_size || "medium",
+          approximate_weight_kg: Number(refreshed.approximate_weight_kg || 0),
+          fragile: Boolean(refreshed.fragile),
+          requires_two_people: Boolean(refreshed.requires_two_people),
+          requires_van: Boolean(refreshed.requires_van),
+          delivery_quote_amount: refreshed.delivery_quote_amount,
+          accepted_price: refreshed.accepted_price,
+          driver_payout_amount: refreshed.driver_payout_amount,
+          created_at: refreshed.created_at,
+          updated_at: refreshed.updated_at ?? null,
+        }
+      : {
+          id: booking.id,
+          status: toStatus,
+          payment_status: paymentStatus,
+          driver_id: booking.driver_id,
+        },
+  });
 }

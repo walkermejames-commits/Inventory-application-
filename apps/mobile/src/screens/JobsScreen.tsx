@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from "react";
 import {
   FlatList,
   RefreshControl,
@@ -7,62 +7,51 @@ import {
   Text,
   TouchableOpacity,
   View,
-} from 'react-native';
+} from "react-native";
 
-import JobCard from '../components/JobCard';
-import { Booking } from '../types/booking';
-import { colors } from '../theme/colors';
+import JobCard from "../components/JobCard";
+import { Booking } from "../types/booking";
+import { colors } from "../theme/colors";
+import { getMobileConfigErrors } from "../lib/config";
+import { DriverApiError, fetchDriverJobs } from "../lib/driverApi";
 
-const adminApiUrl = process.env.EXPO_PUBLIC_ADMIN_API_URL || '';
-const demoDriverId = process.env.EXPO_PUBLIC_DEMO_DRIVER_ID || '';
-/** Pilot key — prefer device-secure storage later; must match MOBILE_API_SECRET or ADMIN_API_SECRET. */
-const mobileApiKey = process.env.EXPO_PUBLIC_MOBILE_API_KEY || '';
 const pollIntervalMs = 10000;
-
-async function loadAssignedJobs(): Promise<Booking[]> {
-  if (!adminApiUrl || !demoDriverId) {
-    return [];
-  }
-
-  const baseUrl = adminApiUrl.replace(/\/$/, '');
-  const headers: Record<string, string> = {
-    'x-driver-id': demoDriverId,
-  };
-  if (mobileApiKey) {
-    headers['x-api-key'] = mobileApiKey;
-  }
-
-  const response = await fetch(
-    `${baseUrl}/api/mobile/jobs?driverId=${encodeURIComponent(demoDriverId)}`,
-    { headers }
-  );
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data?.error || 'Could not load assigned jobs');
-  }
-
-  return data.jobs || [];
-}
 
 export default function JobsScreen({ navigation }: any) {
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [jobs, setJobs] = useState<Booking[]>([]);
+  const configErrors = useMemo(() => getMobileConfigErrors(), []);
 
   const activeJobs = useMemo(
-    () => jobs.filter(job => job.status !== 'completed' && job.status !== 'cancelled'),
+    () =>
+      jobs.filter(
+        (job) => job.status !== "completed" && job.status !== "cancelled"
+      ),
     [jobs]
   );
 
   const fetchJobs = async () => {
+    if (configErrors.length) {
+      setError(configErrors.join("\n"));
+      setJobs([]);
+      setLoading(false);
+      return;
+    }
+
     try {
-      const nextJobs = await loadAssignedJobs();
+      const nextJobs = await fetchDriverJobs();
       setJobs(nextJobs);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not load jobs');
+      const message =
+        err instanceof DriverApiError
+          ? [err.message, err.detail].filter(Boolean).join(" — ")
+          : err instanceof Error
+            ? err.message
+            : "Could not load jobs";
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -70,9 +59,7 @@ export default function JobsScreen({ navigation }: any) {
 
   useEffect(() => {
     fetchJobs();
-
     const interval = setInterval(fetchJobs, pollIntervalMs);
-
     return () => clearInterval(interval);
   }, []);
 
@@ -81,8 +68,6 @@ export default function JobsScreen({ navigation }: any) {
     await fetchJobs();
     setRefreshing(false);
   };
-
-  const missingConfig = !adminApiUrl || !demoDriverId;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -94,7 +79,7 @@ export default function JobsScreen({ navigation }: any) {
 
         <TouchableOpacity
           style={styles.profileButton}
-          onPress={() => navigation.navigate('Profile')}
+          onPress={() => navigation.navigate("Profile")}
         >
           <Text style={styles.profileText}>Profile</Text>
         </TouchableOpacity>
@@ -107,20 +92,23 @@ export default function JobsScreen({ navigation }: any) {
         </View>
 
         <View style={styles.statCard}>
-          <Text style={styles.statNumber}>£{
-            activeJobs
+          <Text style={styles.statNumber}>
+            £
+            {activeJobs
               .reduce((sum, job) => sum + (job.driver_payout_amount || 0), 0)
-              .toFixed(0)
-          }</Text>
+              .toFixed(0)}
+          </Text>
           <Text style={styles.statLabel}>Assigned payout</Text>
         </View>
       </View>
 
-      {missingConfig ? (
+      {configErrors.length ? (
         <View style={styles.warningBox}>
           <Text style={styles.warningTitle}>Driver feed not configured</Text>
           <Text style={styles.warningText}>
-            Add EXPO_PUBLIC_ADMIN_API_URL and EXPO_PUBLIC_DEMO_DRIVER_ID to the mobile app environment.
+            Set EXPO_PUBLIC_ADMIN_API_URL, EXPO_PUBLIC_DEMO_DRIVER_ID, and
+            EXPO_PUBLIC_MOBILE_API_KEY (must match MOBILE_API_SECRET on the
+            server). Never put ADMIN_API_SECRET in the Expo app.
           </Text>
         </View>
       ) : null}
@@ -147,7 +135,7 @@ export default function JobsScreen({ navigation }: any) {
           <JobCard
             booking={item}
             onPress={() =>
-              navigation.navigate('JobDetail', {
+              navigation.navigate("JobDetail", {
                 bookingId: item.id,
               })
             }
@@ -155,7 +143,9 @@ export default function JobsScreen({ navigation }: any) {
         )}
         ListEmptyComponent={
           <View style={styles.emptyState}>
-            <Text style={styles.emptyTitle}>{loading ? 'Loading jobs...' : 'No assigned jobs'}</Text>
+            <Text style={styles.emptyTitle}>
+              {loading ? "Loading jobs..." : "No assigned jobs"}
+            </Text>
             <Text style={styles.emptyText}>
               FC-assigned delivery work will appear here automatically.
             </Text>
@@ -175,21 +165,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 22,
     paddingTop: 20,
     paddingBottom: 12,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
   kicker: {
     color: colors.accent,
     fontSize: 11,
-    fontWeight: '800',
+    fontWeight: "800",
     letterSpacing: 2,
     marginBottom: 4,
   },
   title: {
     color: colors.text,
     fontSize: 32,
-    fontWeight: '900',
+    fontWeight: "900",
   },
   profileButton: {
     backgroundColor: colors.surface,
@@ -201,10 +191,10 @@ const styles = StyleSheet.create({
   },
   profileText: {
     color: colors.text,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   statsRow: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 14,
     paddingHorizontal: 22,
     marginTop: 8,
@@ -221,7 +211,7 @@ const styles = StyleSheet.create({
   statNumber: {
     color: colors.text,
     fontSize: 28,
-    fontWeight: '900',
+    fontWeight: "900",
   },
   statLabel: {
     color: colors.textSecondary,
@@ -239,7 +229,7 @@ const styles = StyleSheet.create({
   },
   warningTitle: {
     color: colors.warning,
-    fontWeight: '900',
+    fontWeight: "900",
     marginBottom: 6,
   },
   warningText: {
@@ -257,7 +247,7 @@ const styles = StyleSheet.create({
   },
   errorTitle: {
     color: colors.danger,
-    fontWeight: '900',
+    fontWeight: "900",
     marginBottom: 6,
   },
   errorText: {
@@ -270,17 +260,17 @@ const styles = StyleSheet.create({
   },
   emptyState: {
     paddingVertical: 120,
-    alignItems: 'center',
+    alignItems: "center",
   },
   emptyTitle: {
     color: colors.text,
     fontSize: 24,
-    fontWeight: '800',
+    fontWeight: "800",
     marginBottom: 8,
   },
   emptyText: {
     color: colors.textSecondary,
-    textAlign: 'center',
+    textAlign: "center",
     maxWidth: 280,
     lineHeight: 22,
   },
