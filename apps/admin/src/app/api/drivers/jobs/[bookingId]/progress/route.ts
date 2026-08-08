@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import {
   isDriverStatusTransitionAllowed,
   isLocalDevicePhotoPath,
-  planPayoutReadySteps,
   verifyRegisteredProofPhoto,
   type ProofPhotoRecord,
 } from "@door-in-four/shared";
@@ -10,6 +9,7 @@ import type { BookingStatus } from "@door-in-four/types";
 import { supabase } from "@/lib/server";
 import { verifyCode } from "@/lib/security";
 import { gateMobileApi, isNextResponse } from "@/lib/auth";
+import { reconcilePayoutReadyForBooking } from "@/lib/payout-reconcile";
 
 type RouteContext = {
   params: Promise<{ bookingId: string }>;
@@ -199,96 +199,24 @@ export async function POST(request: Request, context: RouteContext) {
 
   let paymentStatus = booking.payment_status;
 
+  // After status=completed, payout readiness is repaired via idempotent reconcile
+  // (not a driver lifecycle transition — completed→completed remains illegal).
   if (toStatus === "completed") {
-    const { data: existingPayout, error: payoutLookupError } = await supabase
-      .from("payouts")
-      .select("id")
-      .eq("booking_id", booking.id)
-      .maybeSingle();
-
-    // PGRST116 is "no rows" for .single(); with maybeSingle, real errors still matter
-    if (payoutLookupError) {
+    const reconcile = await reconcilePayoutReadyForBooking(booking.id);
+    if (reconcile.ok === false) {
       return NextResponse.json(
         {
-          error: `Booking completed but payout lookup failed: ${payoutLookupError.message}`,
+          error: reconcile.error,
           partial: true,
           bookingStatus: "completed",
+          paymentStatus,
+          // Admin can retry without re-running driver progress
+          reconcilePath: `/api/payouts/${booking.id}/reconcile`,
         },
-        { status: 500 }
+        { status: reconcile.status || 500 }
       );
     }
-
-    const steps = planPayoutReadySteps({
-      bookingId: booking.id,
-      driverId: booking.driver_id,
-      driverPayoutAmount: booking.driver_payout_amount,
-      existingPayoutId: existingPayout?.id ?? null,
-    });
-
-    for (const step of steps) {
-      if (step.type === "update") {
-        const { error: payoutUpdateError } = await supabase
-          .from("payouts")
-          .update({ status: step.status })
-          .eq("id", step.payoutId);
-
-        if (payoutUpdateError) {
-          return NextResponse.json(
-            {
-              error: `Booking completed but payout update failed: ${payoutUpdateError.message}`,
-              partial: true,
-              bookingStatus: "completed",
-              paymentStatus,
-            },
-            { status: 500 }
-          );
-        }
-      }
-
-      if (step.type === "insert") {
-        const { error: payoutInsertError } = await supabase.from("payouts").insert({
-          booking_id: step.bookingId,
-          driver_id: step.driverId,
-          stripe_connect_account_id: null,
-          amount: step.amount,
-          currency: "gbp",
-          status: step.status,
-        });
-
-        if (payoutInsertError) {
-          return NextResponse.json(
-            {
-              error: `Booking completed but payout insert failed: ${payoutInsertError.message}`,
-              partial: true,
-              bookingStatus: "completed",
-              paymentStatus,
-            },
-            { status: 500 }
-          );
-        }
-      }
-
-      if (step.type === "set_booking_payment_status") {
-        const { error: paymentStatusError } = await supabase
-          .from("bookings")
-          .update({ payment_status: step.status })
-          .eq("id", booking.id);
-
-        if (paymentStatusError) {
-          return NextResponse.json(
-            {
-              error: `Booking completed but payment_status update failed: ${paymentStatusError.message}`,
-              partial: true,
-              bookingStatus: "completed",
-              paymentStatus,
-            },
-            { status: 500 }
-          );
-        }
-
-        paymentStatus = step.status;
-      }
-    }
+    paymentStatus = reconcile.paymentStatus;
   }
 
   const { data: refreshed, error: refreshError } = await supabase

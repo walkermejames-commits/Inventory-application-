@@ -1,5 +1,11 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
+import {
+  checkoutSessionIdempotencyKey,
+  nextCheckoutAttempt,
+  planPaymentRowForCheckout,
+  shouldReuseCheckoutSession,
+} from "@door-in-four/shared";
 import { supabase } from "@/src/lib/server";
 import {
   canPerformBookingAction,
@@ -13,8 +19,18 @@ const getMoneyValue = (value: unknown): number | null => {
 };
 
 /**
- * Create Stripe Checkout session for a booking.
- * Requires buyer access token — bookingId alone is not sufficient (IDOR fix).
+ * Create or reuse a Stripe Checkout Session for a booking.
+ *
+ * Flow (minimises orphan sessions):
+ * 1. Authorise buyer token
+ * 2. Upsert payments row as payment_pending (local state first)
+ * 3. Reuse open Checkout Session when present
+ * 4. Otherwise create session with Stripe Idempotency-Key
+ * 5. Persist session id on payments row
+ *
+ * Token note: success/cancel URLs still carry the access token in the query string
+ * so the track/checkout pages can re-auth. Prefer short-lived tokens later; avoid
+ * logging full request URLs that include ?token= in production.
  */
 export async function POST(request: Request) {
   try {
@@ -43,6 +59,7 @@ export async function POST(request: Request) {
       );
     }
 
+    // Never log the raw access token
     const { data: booking, error } = await supabase
       .from("bookings")
       .select(
@@ -117,6 +134,68 @@ export async function POST(request: Request) {
       );
     }
 
+    const amountPence = Math.round(totalPrice * 100);
+
+    const { data: existingPayment } = await supabase
+      .from("payments")
+      .select(
+        "id,status,stripe_checkout_session_id,checkout_attempt,amount"
+      )
+      .eq("booking_id", booking.id)
+      .maybeSingle();
+
+    // --- Reuse open session when possible ---
+    if (existingPayment?.stripe_checkout_session_id) {
+      try {
+        const existingSession = await stripe.checkout.sessions.retrieve(
+          existingPayment.stripe_checkout_session_id
+        );
+        if (shouldReuseCheckoutSession(existingSession)) {
+          return NextResponse.json({
+            sessionId: existingSession.id,
+            bookingId: booking.id,
+            reused: true,
+          });
+        }
+      } catch {
+        // Session missing in Stripe — fall through to create a new one
+      }
+    }
+
+    const attempt = nextCheckoutAttempt({
+      existingCheckoutSessionId: existingPayment?.stripe_checkout_session_id,
+      existingSessionReusable: false,
+      previousAttempt: existingPayment?.checkout_attempt ?? null,
+    });
+
+    // --- Persist local payment intent BEFORE creating Stripe session ---
+    const preRow = planPaymentRowForCheckout({
+      bookingId: booking.id,
+      amount: totalPrice,
+      checkoutAttempt: attempt,
+      stripeCheckoutSessionId: existingPayment?.stripe_checkout_session_id ?? null,
+    });
+
+    const { error: prePersistError } = await supabase.from("payments").upsert(
+      {
+        booking_id: preRow.booking_id,
+        amount: preRow.amount,
+        currency: preRow.currency,
+        status: preRow.status,
+        checkout_attempt: preRow.checkout_attempt,
+      },
+      { onConflict: "booking_id" }
+    );
+
+    if (prePersistError) {
+      return NextResponse.json(
+        {
+          error: `Could not record payment state before Stripe: ${prePersistError.message}`,
+        },
+        { status: 500 }
+      );
+    }
+
     const sellerBaseUrl =
       process.env.NEXT_PUBLIC_SELLER_URL ||
       process.env.NEXT_PUBLIC_SITE_URL ||
@@ -124,46 +203,74 @@ export async function POST(request: Request) {
 
     const pickupTown = pickup?.town || quote?.pickup_town || "pickup";
     const deliveryTown = delivery?.town || quote?.delivery_town || "delivery";
+    // Token in success/cancel URLs — residual logging risk; do not log full URLs server-side
     const tokenQ = encodeURIComponent(token);
-
-    const session = await stripe.checkout.sessions.create({
-      mode: "payment",
-      payment_method_types: ["card"],
-      line_items: [
-        {
-          price_data: {
-            currency: "gbp",
-            product_data: {
-              name: `Door in Four delivery ${booking.id.slice(0, 8)}`,
-              description: `${pickupTown} → ${deliveryTown}`,
-            },
-            unit_amount: Math.round(totalPrice * 100),
-          },
-          quantity: 1,
-        },
-      ],
-      success_url: `${sellerBaseUrl}/track/${booking.id}?checkout=success&session_id={CHECKOUT_SESSION_ID}&token=${tokenQ}`,
-      cancel_url: `${sellerBaseUrl}/checkout/${booking.id}?checkout=cancelled&token=${tokenQ}`,
-      metadata: {
-        booking_id: booking.id,
-        quote_id: booking.quote_id || "",
-        source: "seller_checkout",
-      },
+    const idempotencyKey = checkoutSessionIdempotencyKey({
+      bookingId: booking.id,
+      amountPence,
+      attempt,
     });
 
-    const { error: paymentError } = await supabase.from("payments").upsert(
+    const session = await stripe.checkout.sessions.create(
       {
-        booking_id: booking.id,
-        amount: totalPrice,
-        currency: "gbp",
-        status: "payment_pending",
+        mode: "payment",
+        payment_method_types: ["card"],
+        line_items: [
+          {
+            price_data: {
+              currency: "gbp",
+              product_data: {
+                name: `Door in Four delivery ${booking.id.slice(0, 8)}`,
+                description: `${pickupTown} → ${deliveryTown}`,
+              },
+              unit_amount: amountPence,
+            },
+            quantity: 1,
+          },
+        ],
+        success_url: `${sellerBaseUrl}/track/${booking.id}?checkout=success&session_id={CHECKOUT_SESSION_ID}&token=${tokenQ}`,
+        cancel_url: `${sellerBaseUrl}/checkout/${booking.id}?checkout=cancelled&token=${tokenQ}`,
+        metadata: {
+          booking_id: booking.id,
+          quote_id: booking.quote_id || "",
+          source: "seller_checkout",
+          checkout_attempt: String(attempt),
+        },
+      },
+      { idempotencyKey }
+    );
+
+    const postRow = planPaymentRowForCheckout({
+      bookingId: booking.id,
+      amount: totalPrice,
+      checkoutAttempt: attempt,
+      stripeCheckoutSessionId: session.id,
+    });
+
+    const { error: postPersistError } = await supabase.from("payments").upsert(
+      {
+        booking_id: postRow.booking_id,
+        amount: postRow.amount,
+        currency: postRow.currency,
+        status: postRow.status,
+        checkout_attempt: postRow.checkout_attempt,
+        stripe_checkout_session_id: postRow.stripe_checkout_session_id,
       },
       { onConflict: "booking_id" }
     );
 
-    if (paymentError) {
+    if (postPersistError) {
+      // Deterministic recovery: session exists; client can retry checkout and we will reuse open session once row is fixed
       return NextResponse.json(
-        { error: `Checkout session created but payment row failed: ${paymentError.message}` },
+        {
+          error: `Stripe session created but payment row update failed: ${postPersistError.message}`,
+          partial: true,
+          recovery: {
+            sessionId: session.id,
+            bookingId: booking.id,
+            hint: "Retry POST /api/checkout with the same booking token; open sessions are reused once the session id is persisted.",
+          },
+        },
         { status: 500 }
       );
     }
@@ -171,11 +278,14 @@ export async function POST(request: Request) {
     return NextResponse.json({
       sessionId: session.id,
       bookingId: booking.id,
+      reused: false,
+      attempt,
     });
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Failed to create checkout session";
-    console.error("Seller Stripe Checkout Error:", error);
+    // Avoid logging tokens — message only
+    console.error("Seller Stripe Checkout Error:", message);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

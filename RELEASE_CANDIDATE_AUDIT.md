@@ -104,7 +104,8 @@ seller_quote_pending / quote_created
 | `POST /api/sell/create-link` | PUBLIC seller | token hash stored |
 | `POST /api/buyer/submit-details` | BUYER TOKEN | private token hash |
 | `GET/PATCH /api/bookings/[id]` | BUYER/SELLER TOKEN | **Requires access token** (buyer `private_buyer_token_hash` or seller `secure_token_hash`). Booking UUID alone rejected. |
-| `POST /api/checkout` | BUYER TOKEN | **Requires buyer access token** — bookingId alone cannot start Stripe session |
+| `POST /api/checkout` | BUYER TOKEN | **Requires buyer access token**; persists payment row first; reuses open Stripe sessions; Idempotency-Key on create |
+| `POST /api/payouts/[id]/reconcile` | ADMIN | Idempotent repair for completed bookings with incomplete payout_ready |
 | `POST /api/seller/*` | SELLER TOKEN | token/hash where implemented |
 
 ---
@@ -119,6 +120,7 @@ Apply **in order**:
 4. `004_add_pickup_contact_email_address.sql`
 5. `005_buyer_led_schema_alignment.sql` — buyer-led columns + `seller_quote_pending`
 6. `006_release_candidate_ops_and_storage.sql` — `dispatch_timers`, `operational_events`, indexes
+7. `007_checkout_session_and_reconcile.sql` — `payments.stripe_checkout_session_id`, `checkout_attempt`
 
 **Manual:** create Supabase Storage bucket `booking-proofs` (private).
 
@@ -174,6 +176,9 @@ Coverage includes: admin auth required, driver identity, lifecycle skips, proof 
 5. **Dependabot** reports many dependency vulns on default branch (pre-existing).
 6. **Proof upload** requires Storage bucket + service role; without bucket, verification cannot complete.
 7. **Seller booking IDOR** on GET/PATCH/checkout: **fixed** — access token required (buyer or seller hash).
+8. **Payout after completed**: dedicated `POST /api/payouts/:id/reconcile` (admin) — idempotent recovery without weakening driver lifecycle.
+9. **Checkout sessions**: payment row pre-persist + session id storage + reuse of `open` sessions (migration **007**).
+10. **Access tokens in query strings** (quote/checkout/track URLs): residual risk if URLs are logged or shared; avoid logging full URLs server-side; prefer short-lived tokens post-pilot.
 
 ---
 
