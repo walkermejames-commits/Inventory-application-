@@ -2,7 +2,8 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "jsx": "react-jsx",
-    "composite": true
+    "noEmit": true,
+    "composite": false
   },
   "include": [
     "src",
@@ -10,3 +11,4 @@
     "index.ts"
   ]
 }
+

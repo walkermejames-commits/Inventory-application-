@@ -37,7 +37,7 @@ describe("canonical happy path (buyer-led)", () => {
   });
 });
 
-describe("status machine guards", () => {
+describe("status machine guards (admin/ops rules)", () => {
   it("blocks transitions out of terminal states", () => {
     expect(isStatusTransitionAllowed("cancelled", "driver_assigned")).toBe(false);
     expect(isStatusTransitionAllowed("completed", "cancelled")).toBe(true);
@@ -47,6 +47,8 @@ describe("status machine guards", () => {
     expect(isStatusTransitionAllowed("seller_quote_pending", "awaiting_payment")).toBe(true);
   });
 });
+
+// Driver skip regressions live in tests.driver-transitions.test.ts
 
 describe("money path rules", () => {
   it("uses a single 75% driver payout ratio", () => {

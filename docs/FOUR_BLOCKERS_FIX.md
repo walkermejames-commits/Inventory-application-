@@ -63,10 +63,26 @@ ADMIN_DASHBOARD_PASSWORD=...   # browser FC login
 EXPO_PUBLIC_MOBILE_API_KEY=... # same value as mobile/admin secret for pilot app
 ```
 
+## Follow-up hardening (same branch)
+
+### Driver status transitions
+- `isDriverStatusTransitionAllowed` — **exact next step only** on the driver chain
+- `isAdminStatusTransitionAllowed` — privileged forward skips for ops routes
+- Driver progress API (`/api/drivers/jobs/[id]/progress`) uses **driver** rules only
+- Admin booking status routes use **admin** rules
+- Drivers cannot `driver_assigned → completed` or skip pickup/delivery verification
+
+### Mobile driver identity
+- When `expectedDriverId` is set, `x-driver-id` is **required** (401 if missing)
+- Mismatch → 403
+- Applies for both `MOBILE_API_SECRET` and `ADMIN_API_SECRET` (admin key still authenticates the client, not an anonymous driver)
+
 ## Reviewer checklist
 
 - [ ] Migration 005 reviewed for production safety
 - [ ] Confirm admin UI login + assign-driver still works with session cookie
 - [ ] Confirm mobile jobs 401 without key when secrets set
+- [ ] Confirm mobile jobs 401 without `x-driver-id` when `driverId` query present
+- [ ] Confirm driver progress rejects status skips
 - [ ] Confirm quote create inserts both `quotes` and `bookings`
 - [ ] Confirm pricing driver payout is 75% of subtotal everywhere

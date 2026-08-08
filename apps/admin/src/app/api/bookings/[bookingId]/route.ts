@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { isStatusTransitionAllowed } from "@door-in-four/shared";
+import { isAdminStatusTransitionAllowed } from "@door-in-four/shared";
 import type { BookingStatus } from "@door-in-four/types";
 import { supabase } from "@/lib/server";
 import { gateAdminApi, isNextResponse } from "@/lib/auth";
@@ -29,7 +29,8 @@ export async function POST(
     return NextResponse.json({ error: "Booking not found" }, { status: 404 });
   }
 
-  if (!isStatusTransitionAllowed(booking.status as BookingStatus, toStatus)) {
+  // Privileged admin/ops path — deliberate skips allowed; drivers use the progress endpoint instead
+  if (!isAdminStatusTransitionAllowed(booking.status as BookingStatus, toStatus)) {
     return NextResponse.json({ error: "Transition denied" }, { status: 400 });
   }
 

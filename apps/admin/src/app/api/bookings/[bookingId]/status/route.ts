@@ -1,13 +1,23 @@
 import { NextResponse } from "next/server";
-import { isStatusTransitionAllowed } from "@door-in-four/shared";
+import { isAdminStatusTransitionAllowed } from "@door-in-four/shared";
+import type { BookingStatus } from "@door-in-four/types";
 import { supabase } from "@/lib/server";
+import { gateAdminApi, isNextResponse } from "@/lib/auth";
 
 export async function POST(
   request: Request,
   context: { params: Promise<{ bookingId: string }> }
 ) {
+  const auth = gateAdminApi(request);
+  if (isNextResponse(auth)) return auth;
+
   const { bookingId } = await context.params;
-  const { toStatus, actorUserId, actorRole, note, metadata } = await request.json();
+  const body = await request.json();
+  const toStatus = body.toStatus as BookingStatus;
+  const actorUserId = auth.actorUserId || body.actorUserId || null;
+  const actorRole = body.actorRole || auth.actorRole || "admin";
+  const note = body.note;
+  const metadata = body.metadata;
 
   const { data: booking, error } = await supabase
     .from("bookings")
@@ -19,7 +29,8 @@ export async function POST(
     return NextResponse.json({ error: "Booking not found" }, { status: 404 });
   }
 
-  if (!isStatusTransitionAllowed(booking.status, toStatus)) {
+  // Admin/ops privileged transitions only on this route
+  if (!isAdminStatusTransitionAllowed(booking.status as BookingStatus, toStatus)) {
     return NextResponse.json({ error: "Transition denied" }, { status: 400 });
   }
 

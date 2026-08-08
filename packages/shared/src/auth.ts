@@ -33,6 +33,40 @@ function trustedActorUserId(request: Request): string | null {
 }
 
 /**
+ * When a resource is scoped to a driver, require x-driver-id and match it.
+ * A shared MOBILE_API_SECRET alone must not allow acting as an arbitrary driver.
+ */
+function enforceExpectedDriverIdentity(
+  request: Request,
+  expectedDriverId: string,
+  base: ApiAuthSuccess
+): ApiAuthResult {
+  const headerDriverId = request.headers.get("x-driver-id")?.trim() || null;
+
+  if (!headerDriverId) {
+    return {
+      ok: false,
+      status: 401,
+      error: "Driver identity required (x-driver-id)",
+    };
+  }
+
+  if (headerDriverId !== expectedDriverId) {
+    return {
+      ok: false,
+      status: 403,
+      error: "Driver identity mismatch",
+    };
+  }
+
+  return {
+    ...base,
+    actorUserId: headerDriverId,
+    actorRole: "driver",
+  };
+}
+
+/**
  * Protect admin / ops / payment mutation APIs.
  * Requires ADMIN_API_SECRET via `x-api-key` or `Authorization: Bearer …`.
  * In non-production, if the secret is unset, allows with a warning (dev only).
@@ -76,7 +110,10 @@ export function requireAdminApiAuth(request: Request): ApiAuthResult {
 /**
  * Protect driver / mobile APIs.
  * Accepts MOBILE_API_SECRET or ADMIN_API_SECRET.
- * Optionally enforces that the caller’s x-driver-id matches the resource driverId.
+ *
+ * When `expectedDriverId` is supplied, `x-driver-id` is required and must match.
+ * This applies even when the caller authenticated with ADMIN_API_SECRET so a
+ * shared secret cannot impersonate an arbitrary driver without declaring identity.
  */
 export function requireMobileApiAuth(
   request: Request,
@@ -86,31 +123,30 @@ export function requireMobileApiAuth(
   const adminSecret = process.env.ADMIN_API_SECRET?.trim();
   const provided = extractApiKey(request);
   const nodeEnv = process.env.NODE_ENV || "development";
+  const expectedDriverId = options?.expectedDriverId?.trim() || null;
 
-  const accepted =
-    (Boolean(mobileSecret) && provided === mobileSecret) ||
-    (Boolean(adminSecret) && provided === adminSecret);
+  const acceptedWithMobile = Boolean(mobileSecret) && provided === mobileSecret;
+  const acceptedWithAdmin = Boolean(adminSecret) && provided === adminSecret;
+  const accepted = acceptedWithMobile || acceptedWithAdmin;
 
   if (mobileSecret || adminSecret) {
     if (!accepted) {
       return { ok: false, status: 401, error: "Unauthorized" };
     }
 
-    const headerDriverId = request.headers.get("x-driver-id")?.trim() || null;
-    if (
-      options?.expectedDriverId &&
-      headerDriverId &&
-      headerDriverId !== options.expectedDriverId
-    ) {
-      return { ok: false, status: 403, error: "Driver identity mismatch" };
-    }
-
-    return {
+    const base: ApiAuthSuccess = {
       ok: true,
-      mode: mobileSecret && provided === mobileSecret ? "mobile_key" : "api_key",
-      actorUserId: headerDriverId || trustedActorUserId(request),
+      mode: acceptedWithMobile ? "mobile_key" : "api_key",
+      actorUserId:
+        request.headers.get("x-driver-id")?.trim() || trustedActorUserId(request),
       actorRole: "driver",
     };
+
+    if (expectedDriverId) {
+      return enforceExpectedDriverIdentity(request, expectedDriverId, base);
+    }
+
+    return base;
   }
 
   if (nodeEnv === "production") {
@@ -125,11 +161,18 @@ export function requireMobileApiAuth(
   console.warn(
     "[door-in-four/auth] mobile/admin API secrets unset; allowing mobile API access in non-production only"
   );
-  return {
+
+  const devBase: ApiAuthSuccess = {
     ok: true,
     mode: "dev_open",
     actorUserId:
       request.headers.get("x-driver-id")?.trim() || trustedActorUserId(request),
     actorRole: "driver",
   };
+
+  if (expectedDriverId) {
+    return enforceExpectedDriverIdentity(request, expectedDriverId, devBase);
+  }
+
+  return devBase;
 }

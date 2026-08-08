@@ -13,6 +13,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "bookingId, driverId and response are required" }, { status: 400 });
     }
 
+    // Requires x-driver-id matching driverId — shared mobile secret alone cannot act as any driver
     const auth = gateMobileApi(request, { expectedDriverId: driverId });
     if (isNextResponse(auth)) return auth;
 
