@@ -25,11 +25,13 @@ import {
   advanceDriverJobProgress,
   DriverApiError,
   fetchDriverJob,
+  uploadProofPhoto,
 } from "../lib/driverApi";
 import {
   getNextDriverStatus,
   isVerificationStep,
 } from "../lib/driverProgress";
+import { getPilotMode } from "../lib/config";
 
 type Props = NativeStackScreenProps<RootStackParamList, "JobDetail">;
 
@@ -45,8 +47,10 @@ export default function JobDetailScreen({ route }: Props) {
   const [buyerCode, setBuyerCode] = useState("");
   const [pickupPhotoPath, setPickupPhotoPath] = useState<string | null>(null);
   const [deliveryPhotoPath, setDeliveryPhotoPath] = useState<string | null>(null);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
   const configErrors = useMemo(() => getMobileConfigErrors(), []);
+  const pilotMode = useMemo(() => getPilotMode(), []);
 
   const loadBooking = useCallback(async () => {
     if (!bookingId) {
@@ -92,6 +96,7 @@ export default function JobDetailScreen({ route }: Props) {
   );
 
   const pickProofPhoto = async (kind: "pickup" | "delivery") => {
+    if (!booking) return;
     try {
       const permission = await ImagePicker.requestCameraPermissionsAsync();
       if (!permission.granted) {
@@ -103,26 +108,50 @@ export default function JobDetailScreen({ route }: Props) {
       }
 
       const result = await ImagePicker.launchCameraAsync({
-        quality: 0.7,
+        quality: 0.55,
         allowsEditing: false,
+        base64: true,
       });
 
-      if (result.canceled || !result.assets?.[0]?.uri) {
+      if (result.canceled || !result.assets?.[0]) {
         return;
       }
 
-      const uri = result.assets[0].uri;
-      // Pilot: store local URI as photoPath; production should upload to Supabase Storage first.
-      if (kind === "pickup") {
-        setPickupPhotoPath(uri);
-      } else {
-        setDeliveryPhotoPath(uri);
+      const asset = result.assets[0];
+      if (!asset.base64) {
+        Alert.alert(
+          "Photo capture failed",
+          "Camera did not return image data. Try again."
+        );
+        return;
       }
+
+      setUploadingPhoto(true);
+      const photoType = kind === "pickup" ? "pickup_proof" : "delivery_proof";
+      const storagePath = await uploadProofPhoto({
+        bookingId: booking.id,
+        photoType,
+        base64: asset.base64,
+        contentType: asset.mimeType || "image/jpeg",
+      });
+
+      if (kind === "pickup") {
+        setPickupPhotoPath(storagePath);
+      } else {
+        setDeliveryPhotoPath(storagePath);
+      }
+      Alert.alert("Proof uploaded", "Photo stored securely for this booking.");
     } catch (err) {
-      Alert.alert(
-        "Photo failed",
-        err instanceof Error ? err.message : "Could not capture photo"
-      );
+      const message =
+        err instanceof DriverApiError
+          ? [err.message, err.detail].filter(Boolean).join("\n")
+          : err instanceof Error
+            ? err.message
+            : "Could not capture/upload photo";
+      Alert.alert("Photo failed", message);
+      // Do not set local path — verification cannot proceed without server path
+    } finally {
+      setUploadingPhoto(false);
     }
   };
 
@@ -274,6 +303,11 @@ export default function JobDetailScreen({ route }: Props) {
           </View>
           <Text style={styles.status}>{booking.status.replace(/_/g, " ")}</Text>
           <Text style={styles.bookingId}>#{booking.id.slice(0, 8)}</Text>
+          {pilotMode ? (
+            <Text style={styles.pilotBadge}>
+              PRIVATE PILOT MODE — shared mobile secret, not production auth
+            </Text>
+          ) : null}
         </View>
 
         {error ? (
@@ -402,16 +436,18 @@ export default function JobDetailScreen({ route }: Props) {
           </Text>
           <StatusButton
             label={
-              submitting
-                ? "Updating…"
-                : nextStatus
-                  ? `Move to ${nextStatus.replace(/_/g, " ")}`
-                  : booking.status === "completed"
-                    ? "Completed"
-                    : "Delivery complete"
+              uploadingPhoto
+                ? "Uploading proof…"
+                : submitting
+                  ? "Updating…"
+                  : nextStatus
+                    ? `Move to ${nextStatus.replace(/_/g, " ")}`
+                    : booking.status === "completed"
+                      ? "Completed"
+                      : "Delivery complete"
             }
             onPress={updateStatus}
-            disabled={!nextStatus || submitting}
+            disabled={!nextStatus || submitting || uploadingPhoto}
           />
         </View>
       </ScrollView>
@@ -477,6 +513,14 @@ const styles = StyleSheet.create({
     marginTop: 6,
     color: colors.textSecondary,
     fontSize: 12,
+  },
+  pilotBadge: {
+    marginTop: 12,
+    color: colors.warning,
+    fontSize: 11,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
   section: {
     backgroundColor: colors.surface,

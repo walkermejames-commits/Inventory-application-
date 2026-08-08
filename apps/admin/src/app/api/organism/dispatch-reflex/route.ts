@@ -13,12 +13,25 @@ type DispatchTimer = {
 };
 
 function isAuthorised(request: Request) {
-  if (!REFLEX_SECRET) return true;
+  const nodeEnv = process.env.NODE_ENV || "development";
+  // Production must configure a secret — fail closed if missing
+  if (!REFLEX_SECRET) {
+    return nodeEnv !== "production";
+  }
 
   const headerSecret = request.headers.get("x-dispatch-reflex-secret") || "";
   const bearer = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") || "";
+  const adminKey = process.env.ADMIN_API_SECRET?.trim() || "";
+  const providedAdmin =
+    request.headers.get("x-api-key")?.trim() ||
+    request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ||
+    "";
 
-  return headerSecret === REFLEX_SECRET || bearer === REFLEX_SECRET;
+  return (
+    headerSecret === REFLEX_SECRET ||
+    bearer === REFLEX_SECRET ||
+    (Boolean(adminKey) && providedAdmin === adminKey)
+  );
 }
 
 function nextEscalationLevel(timer: DispatchTimer) {

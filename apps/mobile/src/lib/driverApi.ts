@@ -127,8 +127,47 @@ export async function fetchDriverJobs(): Promise<Booking[]> {
 }
 
 /**
+ * Upload proof photo to Supabase Storage via admin API.
+ * Returns server storage_path — never a local file:// URI.
+ */
+export async function uploadProofPhoto(input: {
+  bookingId: string;
+  photoType: "pickup_proof" | "delivery_proof";
+  base64: string;
+  contentType?: string;
+}): Promise<string> {
+  assertMobileConfig();
+  const driverId = getDriverId();
+  const base = getAdminApiBaseUrl();
+  const response = await fetch(`${base}/api/mobile/proof-upload`, {
+    method: "POST",
+    headers: driverAuthHeaders(driverId),
+    body: JSON.stringify({
+      driverId,
+      bookingId: input.bookingId,
+      photoType: input.photoType,
+      base64: input.base64,
+      contentType: input.contentType || "image/jpeg",
+    }),
+  });
+  const data = await parseJson(response);
+  if (!response.ok) {
+    throw new DriverApiError(
+      data?.error || "Proof photo upload failed",
+      response.status,
+      data?.detail || data?.hint
+    );
+  }
+  if (!data.storagePath) {
+    throw new DriverApiError("Upload succeeded but storagePath missing", 500);
+  }
+  return data.storagePath as string;
+}
+
+/**
  * Advance one strict step via POST /api/drivers/jobs/[bookingId]/progress.
  * Does not optimistically mutate local state — caller refreshes on success.
+ * photoPath must be a server storage path from uploadProofPhoto (not file://).
  */
 export async function advanceDriverJobProgress(input: {
   bookingId: string;
@@ -149,6 +188,18 @@ export async function advanceDriverJobProgress(input: {
     throw new DriverApiError(
       "EXPO_PUBLIC_MOBILE_API_KEY is required (do not use ADMIN_API_SECRET in the app)",
       0
+    );
+  }
+
+  if (
+    input.photoPath &&
+    (input.photoPath.startsWith("file:") ||
+      input.photoPath.startsWith("content:") ||
+      input.photoPath.startsWith("ph://"))
+  ) {
+    throw new DriverApiError(
+      "Local photo URI is not allowed. Upload proof via uploadProofPhoto first.",
+      400
     );
   }
 

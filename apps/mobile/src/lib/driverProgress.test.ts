@@ -115,4 +115,13 @@ describe("mobile driver progression helpers", () => {
     expect(jobFetchQuery("driver-1", "job-123")).toContain("driverId=driver-1");
     expect(jobFetchQuery("driver-1", "job-123")).toContain("bookingId=job-123");
   });
+
+  it("rejects local file URIs for verification photoPath at validation boundary", async () => {
+    const { isLocalDevicePhotoPath } = await import("@door-in-four/shared");
+    expect(isLocalDevicePhotoPath("file:///data/user/0/photo.jpg")).toBe(true);
+    // Server storage path from proof-upload is acceptable
+    expect(isLocalDevicePhotoPath("proofs/booking-id/pickup_proof-1.jpg")).toBe(
+      false
+    );
+  });
 });

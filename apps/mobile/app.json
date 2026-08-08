@@ -3,25 +3,34 @@
     "name": "Door in Four Driver",
     "slug": "door-in-four-driver",
     "version": "0.1.0",
-    "orientation": "portrait",
+    "orientation": "default",
     "scheme": "doorinfour",
     "userInterfaceStyle": "dark",
     "platforms": ["ios", "android"],
     "assetBundlePatterns": ["**/*"],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "co.doorinfour.driver"
+      "bundleIdentifier": "co.doorinfour.driver",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Door in Four needs the camera to capture pickup and delivery proof photos.",
+        "NSPhotoLibraryUsageDescription": "Door in Four may access photos for proof of delivery."
+      }
     },
     "android": {
       "package": "co.doorinfour.driver",
       "adaptiveIcon": {
         "backgroundColor": "#070a18"
-      }
+      },
+      "permissions": ["CAMERA"]
     },
-    "extra": {
-      "eas": {
-        "projectId": "door-in-four-driver-local"
-      }
-    }
+    "plugins": [
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Door in Four to use photos for delivery proof.",
+          "cameraPermission": "Allow Door in Four to capture delivery proof photos."
+        }
+      ]
+    ]
   }
 }

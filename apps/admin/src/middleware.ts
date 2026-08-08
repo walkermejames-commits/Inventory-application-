@@ -30,26 +30,51 @@ function isPublicApi(pathname: string): boolean {
 }
 
 function isMobileApi(pathname: string): boolean {
-  return pathname.startsWith("/api/mobile/") || pathname.startsWith("/api/drivers/");
+  return (
+    pathname.startsWith("/api/mobile/") || pathname.startsWith("/api/drivers/")
+  );
+}
+
+function isPublicPage(pathname: string): boolean {
+  if (pathname === "/login") return true;
+  // Driver public signup page is informational; mutations still need mobile key
+  if (pathname === "/driver-signup") return true;
+  return false;
 }
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const nodeEnv = process.env.NODE_ENV || "development";
+  const adminSecret = process.env.ADMIN_API_SECRET?.trim();
+  const mobileSecret = process.env.MOBILE_API_SECRET?.trim();
+  const provided = extractApiKey(request);
+  const uiSession = await hasValidUiSession(request);
 
+  // ---- Browser pages: require UI session in production when secrets configured ----
   if (!pathname.startsWith("/api/")) {
+    if (isPublicPage(pathname)) {
+      return NextResponse.next();
+    }
+    // Protect FC board pages when dashboard password is configured
+    if (
+      process.env.ADMIN_DASHBOARD_PASSWORD?.trim() &&
+      adminSecret &&
+      nodeEnv === "production" &&
+      !uiSession
+    ) {
+      const login = new URL("/login", request.url);
+      login.searchParams.set("next", pathname);
+      return NextResponse.redirect(login);
+    }
     return NextResponse.next();
   }
 
+  // ---- API ----
   if (isPublicApi(pathname)) {
     return NextResponse.next();
   }
 
-  const adminSecret = process.env.ADMIN_API_SECRET?.trim();
-  const mobileSecret = process.env.MOBILE_API_SECRET?.trim();
-  const provided = extractApiKey(request);
-  const nodeEnv = process.env.NODE_ENV || "development";
-
-  if (await hasValidUiSession(request)) {
+  if (uiSession) {
     return NextResponse.next();
   }
 
@@ -64,6 +89,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  // Organism / internal secret routes still go through admin key or reflex secret in-route
   if (adminSecret && provided === adminSecret) {
     return NextResponse.next();
   }
@@ -76,5 +102,20 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/api/:path*"],
+  matcher: [
+    "/api/:path*",
+    "/operations",
+    "/operations/:path*",
+    "/bookings",
+    "/bookings/:path*",
+    "/dispatch",
+    "/dispatch/:path*",
+    "/quotes",
+    "/quotes/:path*",
+    "/get-a-quote",
+    "/get-a-quote/:path*",
+    "/performance",
+    "/performance/:path*",
+    "/",
+  ],
 };

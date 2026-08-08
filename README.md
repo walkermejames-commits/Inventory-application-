@@ -2,15 +2,15 @@
 
 Production-focused MVP for a buyer-led local collection and delivery service. Tunbridge Wells pilot launch ready.
 
-## Four blockers fix (schema, auth, booking model, tests)
+## Release candidate (branch `fix/four-blockers-schema-auth-booking-tests`)
 
-See `docs/FOUR_BLOCKERS_FIX.md` on branch `fix/four-blockers-schema-auth-booking-tests`.
+Full audit: **`RELEASE_CANDIDATE_AUDIT.md`**. Deploy notes: **`DEPLOYMENT.md`**.
 
-- Migration `005_buyer_led_schema_alignment.sql` aligns DB with buyer-led app fields
-- Admin APIs require `ADMIN_API_SECRET` (or UI login cookie) in production
-- Driver payout ratio unified at **75%** (`DRIVER_PAYOUT_RATIO`)
-- Buyer-led quotes create both `quotes` + `bookings` rows
-- Expanded unit tests for auth + happy-path lifecycle
+- Migrations through **`006_release_candidate_ops_and_storage.sql`**
+- Admin route auth (list/notes/disputes/audit + middleware page gate)
+- Driver mobile: real progress API + **Supabase Storage** proof upload
+- Driver payout **75%** canonical; strict lifecycle (no status skips)
+- **Do not merge to main** until pilot sign-off
 
 ## Monorepo Audit (what works now)
 

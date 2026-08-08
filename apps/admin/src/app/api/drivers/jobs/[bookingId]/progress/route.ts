@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
-import { isDriverStatusTransitionAllowed } from "@door-in-four/shared";
+import {
+  isDriverStatusTransitionAllowed,
+  isLocalDevicePhotoPath,
+} from "@door-in-four/shared";
 import type { BookingStatus } from "@door-in-four/types";
 import { supabase } from "@/lib/server";
 import { verifyCode } from "@/lib/security";
@@ -66,12 +69,29 @@ export async function POST(request: Request, context: RouteContext) {
       );
     }
 
-    await supabase.from("photos").insert({
+    if (isLocalDevicePhotoPath(photoPath)) {
+      return NextResponse.json(
+        {
+          error: "Invalid proof photo path",
+          detail:
+            "Upload the photo via /api/mobile/proof-upload first and send the returned storagePath",
+        },
+        { status: 400 }
+      );
+    }
+
+    const { error: photoError } = await supabase.from("photos").insert({
       booking_id: booking.id,
       uploaded_by_user_id: driverId,
       photo_type: "pickup_proof",
       storage_path: photoPath,
     });
+    if (photoError) {
+      return NextResponse.json(
+        { error: `Could not record pickup proof: ${photoError.message}` },
+        { status: 500 }
+      );
+    }
   }
 
   if (toStatus === "delivery_verified") {
@@ -82,17 +102,44 @@ export async function POST(request: Request, context: RouteContext) {
       );
     }
 
-    await supabase.from("photos").insert({
+    if (isLocalDevicePhotoPath(photoPath)) {
+      return NextResponse.json(
+        {
+          error: "Invalid proof photo path",
+          detail:
+            "Upload the photo via /api/mobile/proof-upload first and send the returned storagePath",
+        },
+        { status: 400 }
+      );
+    }
+
+    const { error: photoError } = await supabase.from("photos").insert({
       booking_id: booking.id,
       uploaded_by_user_id: driverId,
       photo_type: "delivery_proof",
       storage_path: photoPath,
     });
+    if (photoError) {
+      return NextResponse.json(
+        { error: `Could not record delivery proof: ${photoError.message}` },
+        { status: 500 }
+      );
+    }
   }
 
-  await supabase.from("bookings").update({ status: toStatus }).eq("id", booking.id);
+  const { error: bookingUpdateError } = await supabase
+    .from("bookings")
+    .update({ status: toStatus, updated_at: new Date().toISOString() })
+    .eq("id", booking.id);
 
-  await supabase.from("status_events").insert({
+  if (bookingUpdateError) {
+    return NextResponse.json(
+      { error: `Could not update booking status: ${bookingUpdateError.message}` },
+      { status: 500 }
+    );
+  }
+
+  const { error: eventError } = await supabase.from("status_events").insert({
     booking_id: booking.id,
     previous_status: booking.status,
     new_status: toStatus,
@@ -100,6 +147,16 @@ export async function POST(request: Request, context: RouteContext) {
     actor_role: "driver",
     note: "Driver progress update",
   });
+
+  if (eventError) {
+    return NextResponse.json(
+      {
+        error: `Status updated but status_events insert failed: ${eventError.message}`,
+        partial: true,
+      },
+      { status: 500 }
+    );
+  }
 
   // Payout ready only after a legal step into completed (must have walked verification chain)
   let paymentStatus = booking.payment_status;

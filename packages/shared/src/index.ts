@@ -205,3 +205,22 @@ export function calculateDriverPayout(subtotal: number, adminOverride?: number) 
 export function toPence(amountGbp: number) {
   return Math.round(amountGbp * 100);
 }
+
+/** Reject device-local photo URIs — proof must be a server storage path. */
+export function isLocalDevicePhotoPath(path: string | null | undefined): boolean {
+  if (!path) return false;
+  return (
+    path.startsWith("file:") ||
+    path.startsWith("content:") ||
+    path.startsWith("ph://") ||
+    path.startsWith("assets-library:") ||
+    path.startsWith("file:///")
+  );
+}
+
+export function isServerProofStoragePath(path: string | null | undefined): boolean {
+  if (!path || !path.trim()) return false;
+  if (isLocalDevicePhotoPath(path)) return false;
+  // Accept relative storage keys or https public URLs from our bucket
+  return path.startsWith("proofs/") || path.startsWith("http://") || path.startsWith("https://");
+}
