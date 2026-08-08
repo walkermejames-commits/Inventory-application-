@@ -103,8 +103,8 @@ seller_quote_pending / quote_created
 | `POST /api/buy/create-quote` | PUBLIC buyer | sanitised inputs |
 | `POST /api/sell/create-link` | PUBLIC seller | token hash stored |
 | `POST /api/buyer/submit-details` | BUYER TOKEN | private token hash |
-| `GET/PATCH /api/bookings/[id]` | PUBLIC/token-scoped | IDOR risk residual — tighten with tokens |
-| `POST /api/checkout` | PUBLIC buyer | booking id |
+| `GET/PATCH /api/bookings/[id]` | BUYER/SELLER TOKEN | **Requires access token** (buyer `private_buyer_token_hash` or seller `secure_token_hash`). Booking UUID alone rejected. |
+| `POST /api/checkout` | BUYER TOKEN | **Requires buyer access token** — bookingId alone cannot start Stripe session |
 | `POST /api/seller/*` | SELLER TOKEN | token/hash where implemented |
 
 ---
@@ -169,11 +169,11 @@ Coverage includes: admin auth required, driver identity, lifecycle skips, proof 
 
 1. **Mobile auth is private-pilot** (`EXPO_PUBLIC_DEMO_DRIVER_ID` + shared mobile secret) — not real driver login.
 2. **EAS projectId not set** — no cloud build until you create a real EAS project.
-3. **Seller booking GET by id** remains weakly token-gated in places (IDOR residual).
-4. **Quote/booking multi-insert** not fully transactional.
-5. **Admin pages** in development can load without cookie if secrets unset (dev open).
-6. **Dependabot** reports many dependency vulns on default branch (pre-existing).
-7. **Proof upload** requires Storage bucket + service role; without bucket, verification cannot complete.
+3. **Quote/booking multi-insert** not fully transactional (orphan contact risk mid-create).
+4. **Admin pages** in development can load without cookie if secrets unset (dev open).
+5. **Dependabot** reports many dependency vulns on default branch (pre-existing).
+6. **Proof upload** requires Storage bucket + service role; without bucket, verification cannot complete.
+7. **Seller booking IDOR** on GET/PATCH/checkout: **fixed** — access token required (buyer or seller hash).
 
 ---
 
@@ -185,9 +185,8 @@ Coverage includes: admin auth required, driver identity, lifecycle skips, proof 
 | 2 | Configure production secrets on Render | Hard |
 | 3 | Stripe webhook URL + Connect for real payouts | Hard |
 | 4 | Replace pilot mobile auth with real driver accounts | Medium |
-| 5 | Seller token-only access to booking APIs | Medium |
-| 6 | End-to-end manual pilot on device | Medium |
-| 7 | Dependency vulnerability remediation | Medium |
+| 5 | End-to-end manual pilot on device | Medium |
+| 6 | Dependency vulnerability remediation | Medium |
 
 ---
 

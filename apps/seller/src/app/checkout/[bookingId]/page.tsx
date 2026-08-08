@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { loadStripe } from '@stripe/stripe-js';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
 
@@ -19,7 +19,9 @@ type CheckoutBooking = {
 
 export default function CheckoutPage() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const bookingId = params.bookingId as string;
+  const accessToken = searchParams.get('token') || '';
 
   const [booking, setBooking] = useState<CheckoutBooking | null>(null);
   const [loading, setLoading] = useState(true);
@@ -36,7 +38,13 @@ export default function CheckoutPage() {
       setError(null);
 
       try {
-        const res = await fetch(`/api/bookings/${bookingId}`);
+        if (!accessToken) {
+          throw new Error('Missing access token. Open checkout from your quote link.');
+        }
+
+        const res = await fetch(
+          `/api/bookings/${bookingId}?token=${encodeURIComponent(accessToken)}`
+        );
         const data = await res.json();
 
         if (!res.ok) {
@@ -61,7 +69,7 @@ export default function CheckoutPage() {
     return () => {
       cancelled = true;
     };
-  }, [bookingId]);
+  }, [bookingId, accessToken]);
 
   const handleCheckout = async () => {
     setCheckoutLoading(true);
@@ -74,10 +82,14 @@ export default function CheckoutPage() {
         throw new Error('Stripe could not be loaded. Check NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY.');
       }
 
+      if (!accessToken) {
+        throw new Error('Missing access token');
+      }
+
       const response = await fetch('/api/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ bookingId }),
+        body: JSON.stringify({ bookingId, token: accessToken }),
       });
 
       const data = await response.json();

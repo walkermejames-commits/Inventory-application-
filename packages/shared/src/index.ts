@@ -9,6 +9,7 @@ import {
 
 export * from "./auth";
 export * from "./booking-lifecycle";
+export * from "./proof-photos";
 export { DRIVER_PAYOUT_RATIO, calculateDriverPayoutAmount };
 
 export const createSupabaseServerClient = (url: string, serviceKey: string) =>

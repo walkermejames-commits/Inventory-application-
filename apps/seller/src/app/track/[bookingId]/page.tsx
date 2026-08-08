@@ -52,6 +52,7 @@ export default function TrackBookingPage() {
   const searchParams = useSearchParams();
   const bookingId = params.bookingId as string;
   const checkoutStatus = searchParams.get('checkout');
+  const accessToken = searchParams.get('token') || '';
 
   const [booking, setBooking] = useState<Booking | null>(null);
   const [loading, setLoading] = useState(true);
@@ -59,7 +60,14 @@ export default function TrackBookingPage() {
 
   const fetchBooking = async () => {
     try {
-      const res = await fetch(`/api/bookings/${bookingId}`, { cache: 'no-store' });
+      if (!accessToken) {
+        throw new Error('Missing access token. Open tracking from your booking link.');
+      }
+
+      const res = await fetch(
+        `/api/bookings/${bookingId}?token=${encodeURIComponent(accessToken)}`,
+        { cache: 'no-store' }
+      );
       const data = await res.json();
 
       if (!res.ok) {

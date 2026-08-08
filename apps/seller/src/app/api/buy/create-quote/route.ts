@@ -17,6 +17,10 @@ import {
   cleanTown,
 } from "@door-in-four/shared";
 import { estimateRouteFromPostcodes } from "../../../../lib/geography";
+import {
+  generateAccessToken,
+  hashAccessToken,
+} from "@/src/lib/booking-access";
 
 const itemSizes = ["small", "medium", "large", "furniture", "van_load"] as const;
 const urgencies = ["flexible", "scheduled", "tomorrow", "same_day", "asap"] as const;
@@ -162,6 +166,10 @@ export async function POST(request: Request) {
       );
     }
 
+    // Buyer access token for quote/checkout/track (never grant access by booking UUID alone)
+    const accessToken = generateAccessToken();
+    const accessTokenHash = hashAccessToken(accessToken);
+
     const { data: booking, error: bookingError } = await supabase
       .from("bookings")
       .insert({
@@ -183,6 +191,7 @@ export async function POST(request: Request) {
         driver_payout_amount: driverPayout,
         platform_fee_amount: quoteCalc.platformServiceFee,
         seller_flow_type: "buyer_led",
+        private_buyer_token_hash: accessTokenHash,
         pickup_latitude: route.pickupLat,
         pickup_longitude: route.pickupLng,
         delivery_latitude: route.deliveryLat,
@@ -220,7 +229,9 @@ export async function POST(request: Request) {
       quoteAmount: quoteCalc.totalBuyerPrice,
       driverPayoutEstimate: driverPayout,
       route,
-      redirectTo: `/quote/${booking.id}`,
+      /** Opaque buyer access token — required on subsequent booking APIs */
+      accessToken,
+      redirectTo: `/quote/${booking.id}?token=${encodeURIComponent(accessToken)}`,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not create buyer quote";

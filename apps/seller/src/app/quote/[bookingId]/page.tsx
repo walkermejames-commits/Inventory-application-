@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 
 type QuoteBooking = {
@@ -29,8 +29,10 @@ const money = (value: unknown) => {
 
 export default function QuoteReviewPage() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const router = useRouter();
   const bookingId = params.bookingId as string;
+  const accessToken = searchParams.get('token') || '';
 
   const [booking, setBooking] = useState<QuoteBooking | null>(null);
   const [loading, setLoading] = useState(true);
@@ -47,7 +49,14 @@ export default function QuoteReviewPage() {
         setLoading(true);
         setError(null);
 
-        const res = await fetch(`/api/bookings/${bookingId}`, { cache: 'no-store' });
+        if (!accessToken) {
+          throw new Error('Missing access token. Open this page from your quote link.');
+        }
+
+        const res = await fetch(
+          `/api/bookings/${bookingId}?token=${encodeURIComponent(accessToken)}`,
+          { cache: 'no-store' }
+        );
         const data = await res.json();
 
         if (!res.ok) {
@@ -69,7 +78,7 @@ export default function QuoteReviewPage() {
     return () => {
       cancelled = true;
     };
-  }, [bookingId]);
+  }, [bookingId, accessToken]);
 
   const continueToPayment = async () => {
     if (!booking) return;
@@ -78,10 +87,14 @@ export default function QuoteReviewPage() {
     setError(null);
 
     try {
+      if (!accessToken) {
+        throw new Error('Missing access token');
+      }
+
       const res = await fetch(`/api/bookings/${booking.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ quote_confirmed: true }),
+        body: JSON.stringify({ quote_confirmed: true, token: accessToken }),
       });
       const data = await res.json();
 
@@ -89,7 +102,10 @@ export default function QuoteReviewPage() {
         throw new Error(data?.error || 'Could not confirm quote');
       }
 
-      router.push(data.checkoutUrl || `/checkout/${booking.id}`);
+      router.push(
+        data.checkoutUrl ||
+          `/checkout/${booking.id}?token=${encodeURIComponent(accessToken)}`
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not confirm quote');
     } finally {

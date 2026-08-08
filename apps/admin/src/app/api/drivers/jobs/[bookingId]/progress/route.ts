@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import {
   isDriverStatusTransitionAllowed,
   isLocalDevicePhotoPath,
+  planPayoutReadySteps,
+  verifyRegisteredProofPhoto,
+  type ProofPhotoRecord,
 } from "@door-in-four/shared";
 import type { BookingStatus } from "@door-in-four/types";
 import { supabase } from "@/lib/server";
@@ -11,6 +14,57 @@ import { gateMobileApi, isNextResponse } from "@/lib/auth";
 type RouteContext = {
   params: Promise<{ bookingId: string }>;
 };
+
+async function requireRegisteredProof(params: {
+  bookingId: string;
+  driverId: string;
+  photoType: "pickup_proof" | "delivery_proof";
+  storagePath: string;
+}) {
+  if (isLocalDevicePhotoPath(params.storagePath)) {
+    return {
+      ok: false as const,
+      status: 400,
+      error: "Invalid proof photo path",
+      detail:
+        "Upload the photo via /api/mobile/proof-upload first and send the returned storagePath",
+    };
+  }
+
+  const { data: photos, error } = await supabase
+    .from("photos")
+    .select("id,booking_id,uploaded_by_user_id,photo_type,storage_path")
+    .eq("booking_id", params.bookingId)
+    .eq("uploaded_by_user_id", params.driverId)
+    .eq("photo_type", params.photoType)
+    .eq("storage_path", params.storagePath);
+
+  if (error) {
+    return {
+      ok: false as const,
+      status: 500,
+      error: `Could not verify proof photo: ${error.message}`,
+    };
+  }
+
+  const verification = verifyRegisteredProofPhoto({
+    photos: (photos || []) as ProofPhotoRecord[],
+    bookingId: params.bookingId,
+    driverId: params.driverId,
+    photoType: params.photoType,
+    storagePath: params.storagePath,
+  });
+
+  if (verification.ok === false) {
+    return {
+      ok: false as const,
+      status: verification.status,
+      error: verification.error,
+    };
+  }
+
+  return { ok: true as const, photo: verification.photo };
+}
 
 export async function POST(request: Request, context: RouteContext) {
   const { bookingId } = await context.params;
@@ -32,18 +86,22 @@ export async function POST(request: Request, context: RouteContext) {
   const auth = gateMobileApi(request, { expectedDriverId: driverId });
   if (isNextResponse(auth)) return auth;
 
-  const { data: booking } = await supabase
+  const { data: booking, error: bookingLookupError } = await supabase
     .from("bookings")
     .select("*")
     .eq("id", bookingId)
     .single();
 
-  if (!booking) return NextResponse.json({ error: "Booking not found" }, { status: 404 });
+  if (bookingLookupError || !booking) {
+    return NextResponse.json(
+      { error: bookingLookupError?.message || "Booking not found" },
+      { status: 404 }
+    );
+  }
   if (booking.driver_id !== driverId) {
     return NextResponse.json({ error: "Not your booking" }, { status: 403 });
   }
 
-  // Strict driver chain only — no skip to completed / delivery without verifications
   if (
     !isDriverStatusTransitionAllowed(
       booking.status as BookingStatus,
@@ -53,7 +111,8 @@ export async function POST(request: Request, context: RouteContext) {
     return NextResponse.json(
       {
         error: "Invalid driver transition",
-        detail: "Drivers may only advance one status step at a time; verification stages cannot be skipped",
+        detail:
+          "Drivers may only advance one status step at a time; verification stages cannot be skipped",
         from: booking.status,
         to: toStatus,
       },
@@ -69,29 +128,19 @@ export async function POST(request: Request, context: RouteContext) {
       );
     }
 
-    if (isLocalDevicePhotoPath(photoPath)) {
-      return NextResponse.json(
-        {
-          error: "Invalid proof photo path",
-          detail:
-            "Upload the photo via /api/mobile/proof-upload first and send the returned storagePath",
-        },
-        { status: 400 }
-      );
-    }
-
-    const { error: photoError } = await supabase.from("photos").insert({
-      booking_id: booking.id,
-      uploaded_by_user_id: driverId,
-      photo_type: "pickup_proof",
-      storage_path: photoPath,
+    const proof = await requireRegisteredProof({
+      bookingId: booking.id,
+      driverId,
+      photoType: "pickup_proof",
+      storagePath: photoPath,
     });
-    if (photoError) {
+    if (!proof.ok) {
       return NextResponse.json(
-        { error: `Could not record pickup proof: ${photoError.message}` },
-        { status: 500 }
+        { error: proof.error, detail: "detail" in proof ? proof.detail : undefined },
+        { status: proof.status }
       );
     }
+    // Canonical metadata already created by proof-upload — do not insert a duplicate
   }
 
   if (toStatus === "delivery_verified") {
@@ -102,27 +151,16 @@ export async function POST(request: Request, context: RouteContext) {
       );
     }
 
-    if (isLocalDevicePhotoPath(photoPath)) {
-      return NextResponse.json(
-        {
-          error: "Invalid proof photo path",
-          detail:
-            "Upload the photo via /api/mobile/proof-upload first and send the returned storagePath",
-        },
-        { status: 400 }
-      );
-    }
-
-    const { error: photoError } = await supabase.from("photos").insert({
-      booking_id: booking.id,
-      uploaded_by_user_id: driverId,
-      photo_type: "delivery_proof",
-      storage_path: photoPath,
+    const proof = await requireRegisteredProof({
+      bookingId: booking.id,
+      driverId,
+      photoType: "delivery_proof",
+      storagePath: photoPath,
     });
-    if (photoError) {
+    if (!proof.ok) {
       return NextResponse.json(
-        { error: `Could not record delivery proof: ${photoError.message}` },
-        { status: 500 }
+        { error: proof.error, detail: "detail" in proof ? proof.detail : undefined },
+        { status: proof.status }
       );
     }
   }
@@ -153,42 +191,107 @@ export async function POST(request: Request, context: RouteContext) {
       {
         error: `Status updated but status_events insert failed: ${eventError.message}`,
         partial: true,
+        bookingStatus: toStatus,
       },
       { status: 500 }
     );
   }
 
-  // Payout ready only after a legal step into completed (must have walked verification chain)
   let paymentStatus = booking.payment_status;
+
   if (toStatus === "completed") {
-    const { data: payout } = await supabase
+    const { data: existingPayout, error: payoutLookupError } = await supabase
       .from("payouts")
       .select("id")
       .eq("booking_id", booking.id)
-      .single();
+      .maybeSingle();
 
-    if (payout) {
-      await supabase.from("payouts").update({ status: "payout_ready" }).eq("id", payout.id);
-    } else {
-      await supabase.from("payouts").insert({
-        booking_id: booking.id,
-        driver_id: booking.driver_id,
-        stripe_connect_account_id: null,
-        amount: booking.driver_payout_amount,
-        currency: "gbp",
-        status: "payout_ready",
-      });
+    // PGRST116 is "no rows" for .single(); with maybeSingle, real errors still matter
+    if (payoutLookupError) {
+      return NextResponse.json(
+        {
+          error: `Booking completed but payout lookup failed: ${payoutLookupError.message}`,
+          partial: true,
+          bookingStatus: "completed",
+        },
+        { status: 500 }
+      );
     }
 
-    await supabase
-      .from("bookings")
-      .update({ payment_status: "payout_ready" })
-      .eq("id", booking.id);
+    const steps = planPayoutReadySteps({
+      bookingId: booking.id,
+      driverId: booking.driver_id,
+      driverPayoutAmount: booking.driver_payout_amount,
+      existingPayoutId: existingPayout?.id ?? null,
+    });
 
-    paymentStatus = "payout_ready";
+    for (const step of steps) {
+      if (step.type === "update") {
+        const { error: payoutUpdateError } = await supabase
+          .from("payouts")
+          .update({ status: step.status })
+          .eq("id", step.payoutId);
+
+        if (payoutUpdateError) {
+          return NextResponse.json(
+            {
+              error: `Booking completed but payout update failed: ${payoutUpdateError.message}`,
+              partial: true,
+              bookingStatus: "completed",
+              paymentStatus,
+            },
+            { status: 500 }
+          );
+        }
+      }
+
+      if (step.type === "insert") {
+        const { error: payoutInsertError } = await supabase.from("payouts").insert({
+          booking_id: step.bookingId,
+          driver_id: step.driverId,
+          stripe_connect_account_id: null,
+          amount: step.amount,
+          currency: "gbp",
+          status: step.status,
+        });
+
+        if (payoutInsertError) {
+          return NextResponse.json(
+            {
+              error: `Booking completed but payout insert failed: ${payoutInsertError.message}`,
+              partial: true,
+              bookingStatus: "completed",
+              paymentStatus,
+            },
+            { status: 500 }
+          );
+        }
+      }
+
+      if (step.type === "set_booking_payment_status") {
+        const { error: paymentStatusError } = await supabase
+          .from("bookings")
+          .update({ payment_status: step.status })
+          .eq("id", booking.id);
+
+        if (paymentStatusError) {
+          return NextResponse.json(
+            {
+              error: `Booking completed but payment_status update failed: ${paymentStatusError.message}`,
+              partial: true,
+              bookingStatus: "completed",
+              paymentStatus,
+            },
+            { status: 500 }
+          );
+        }
+
+        paymentStatus = step.status;
+      }
+    }
   }
 
-  const { data: refreshed } = await supabase
+  const { data: refreshed, error: refreshError } = await supabase
     .from("bookings")
     .select(
       `
@@ -200,6 +303,24 @@ export async function POST(request: Request, context: RouteContext) {
     .eq("id", booking.id)
     .single();
 
+  if (refreshError) {
+    // Status already committed — report partial success rather than silent full success
+    return NextResponse.json(
+      {
+        success: true,
+        partial: true,
+        warning: `Status updated but booking refresh failed: ${refreshError.message}`,
+        booking: {
+          id: booking.id,
+          status: toStatus,
+          payment_status: paymentStatus,
+          driver_id: booking.driver_id,
+        },
+      },
+      { status: 200 }
+    );
+  }
+
   const pickup = Array.isArray(refreshed?.pickup_contacts)
     ? refreshed?.pickup_contacts[0]
     : refreshed?.pickup_contacts;
@@ -209,35 +330,28 @@ export async function POST(request: Request, context: RouteContext) {
 
   return NextResponse.json({
     success: true,
-    booking: refreshed
-      ? {
-          id: refreshed.id,
-          status: refreshed.status,
-          payment_status: refreshed.payment_status || paymentStatus,
-          driver_id: refreshed.driver_id,
-          pickup_town: pickup?.town || "Pickup",
-          pickup_postcode: pickup?.postcode || null,
-          pickup_address_line: pickup?.address_line_1 || null,
-          delivery_town: delivery?.town || "Delivery",
-          delivery_postcode: delivery?.postcode || null,
-          delivery_address_line: delivery?.address_line_1 || null,
-          item_title: refreshed.item_title || "Delivery job",
-          item_size: refreshed.item_size || "medium",
-          approximate_weight_kg: Number(refreshed.approximate_weight_kg || 0),
-          fragile: Boolean(refreshed.fragile),
-          requires_two_people: Boolean(refreshed.requires_two_people),
-          requires_van: Boolean(refreshed.requires_van),
-          delivery_quote_amount: refreshed.delivery_quote_amount,
-          accepted_price: refreshed.accepted_price,
-          driver_payout_amount: refreshed.driver_payout_amount,
-          created_at: refreshed.created_at,
-          updated_at: refreshed.updated_at ?? null,
-        }
-      : {
-          id: booking.id,
-          status: toStatus,
-          payment_status: paymentStatus,
-          driver_id: booking.driver_id,
-        },
+    booking: {
+      id: refreshed.id,
+      status: refreshed.status,
+      payment_status: refreshed.payment_status || paymentStatus,
+      driver_id: refreshed.driver_id,
+      pickup_town: pickup?.town || "Pickup",
+      pickup_postcode: pickup?.postcode || null,
+      pickup_address_line: pickup?.address_line_1 || null,
+      delivery_town: delivery?.town || "Delivery",
+      delivery_postcode: delivery?.postcode || null,
+      delivery_address_line: delivery?.address_line_1 || null,
+      item_title: refreshed.item_title || "Delivery job",
+      item_size: refreshed.item_size || "medium",
+      approximate_weight_kg: Number(refreshed.approximate_weight_kg || 0),
+      fragile: Boolean(refreshed.fragile),
+      requires_two_people: Boolean(refreshed.requires_two_people),
+      requires_van: Boolean(refreshed.requires_van),
+      delivery_quote_amount: refreshed.delivery_quote_amount,
+      accepted_price: refreshed.accepted_price,
+      driver_payout_amount: refreshed.driver_payout_amount,
+      created_at: refreshed.created_at,
+      updated_at: refreshed.updated_at ?? null,
+    },
   });
 }

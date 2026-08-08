@@ -87,7 +87,7 @@ export async function POST(request: Request) {
       );
     }
 
-    // Record photo row for audit (progress route also inserts; this is pre-verification evidence)
+    // Canonical photos row — progress verifies this row and must NOT insert another
     const { error: photoError } = await supabase.from("photos").insert({
       booking_id: bookingId,
       uploaded_by_user_id: driverId,
