@@ -33,9 +33,24 @@ export const appUrlSchema = z.object({
   ADMIN_APP_URL: z.string().url()
 });
 
-const adminSchema = baseSchema.merge(supabaseSchema).merge(stripeSchema).merge(mapsSchema).merge(emailSchema).merge(appUrlSchema);
+/** Optional in dev; required in production (enforced at request time by auth helpers). */
+export const apiSecretsSchema = z.object({
+  ADMIN_API_SECRET: z.string().min(8).optional(),
+  MOBILE_API_SECRET: z.string().min(8).optional(),
+  ADMIN_DASHBOARD_PASSWORD: z.string().min(8).optional()
+});
+
+const adminSchema = baseSchema
+  .merge(supabaseSchema)
+  .merge(stripeSchema)
+  .merge(mapsSchema)
+  .merge(emailSchema)
+  .merge(appUrlSchema)
+  .merge(apiSecretsSchema);
 const sellerSchema = baseSchema.merge(supabaseSchema).merge(appUrlSchema);
-const mobileSchema = baseSchema.merge(supabaseSchema.pick({ SUPABASE_URL: true, SUPABASE_ANON_KEY: true })).merge(appUrlSchema.pick({ MOBILE_DEEP_LINK_URL: true, APP_URL: true }));
+const mobileSchema = baseSchema
+  .merge(supabaseSchema.pick({ SUPABASE_URL: true, SUPABASE_ANON_KEY: true }))
+  .merge(appUrlSchema.pick({ MOBILE_DEEP_LINK_URL: true, APP_URL: true }));
 const dbSchema = baseSchema.merge(supabaseSchema);
 
 function parseWithHint<T>(schema: z.ZodType<T>, env: Record<string, string | undefined>, scope: string): T {

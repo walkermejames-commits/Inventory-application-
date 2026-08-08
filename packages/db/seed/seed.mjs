@@ -76,6 +76,7 @@ await supabase.from("quotes").upsert({
   subtotal: 86,
   platform_fee: 10,
   total_price: 96,
+  // 75% of subtotal 86 → 64.5 (DRIVER_PAYOUT_RATIO)
   driver_payout_estimate: 64.5,
   expires_at: new Date(Date.now() + 3600_000).toISOString(),
   status: "quote_created"

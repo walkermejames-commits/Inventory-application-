@@ -15,6 +15,8 @@ import { colors } from '../theme/colors';
 
 const adminApiUrl = process.env.EXPO_PUBLIC_ADMIN_API_URL || '';
 const demoDriverId = process.env.EXPO_PUBLIC_DEMO_DRIVER_ID || '';
+/** Pilot key — prefer device-secure storage later; must match MOBILE_API_SECRET or ADMIN_API_SECRET. */
+const mobileApiKey = process.env.EXPO_PUBLIC_MOBILE_API_KEY || '';
 const pollIntervalMs = 10000;
 
 async function loadAssignedJobs(): Promise<Booking[]> {
@@ -23,7 +25,17 @@ async function loadAssignedJobs(): Promise<Booking[]> {
   }
 
   const baseUrl = adminApiUrl.replace(/\/$/, '');
-  const response = await fetch(`${baseUrl}/api/mobile/jobs?driverId=${encodeURIComponent(demoDriverId)}`);
+  const headers: Record<string, string> = {
+    'x-driver-id': demoDriverId,
+  };
+  if (mobileApiKey) {
+    headers['x-api-key'] = mobileApiKey;
+  }
+
+  const response = await fetch(
+    `${baseUrl}/api/mobile/jobs?driverId=${encodeURIComponent(demoDriverId)}`,
+    { headers }
+  );
   const data = await response.json();
 
   if (!response.ok) {

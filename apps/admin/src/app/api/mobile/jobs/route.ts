@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/server";
+import { gateMobileApi, isNextResponse } from "@/lib/auth";
 
 export async function GET(request: Request) {
   try {
@@ -10,13 +11,18 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "driverId is required" }, { status: 400 });
     }
 
+    const auth = gateMobileApi(request, { expectedDriverId: driverId });
+    if (isNextResponse(auth)) return auth;
+
     const { data, error } = await supabase
       .from("bookings")
-      .select(`
+      .select(
+        `
         id,status,payment_status,item_title,item_size,approximate_weight_kg,fragile,requires_two_people,requires_van,delivery_quote_amount,accepted_price,driver_payout_amount,created_at,
         pickup_contacts (town, postcode, address_line_1),
         delivery_addresses (town, postcode, address_line_1)
-      `)
+      `
+      )
       .eq("driver_id", driverId)
       .in("status", [
         "driver_assigned",
@@ -26,7 +32,7 @@ export async function GET(request: Request) {
         "item_collected",
         "driver_en_route_to_delivery",
         "driver_arrived_at_delivery",
-        "delivery_verified"
+        "delivery_verified",
       ])
       .order("created_at", { ascending: false });
 
@@ -35,8 +41,12 @@ export async function GET(request: Request) {
     }
 
     const jobs = (data || []).map((job: any) => {
-      const pickup = Array.isArray(job.pickup_contacts) ? job.pickup_contacts[0] : job.pickup_contacts;
-      const delivery = Array.isArray(job.delivery_addresses) ? job.delivery_addresses[0] : job.delivery_addresses;
+      const pickup = Array.isArray(job.pickup_contacts)
+        ? job.pickup_contacts[0]
+        : job.pickup_contacts;
+      const delivery = Array.isArray(job.delivery_addresses)
+        ? job.delivery_addresses[0]
+        : job.delivery_addresses;
 
       return {
         id: job.id,

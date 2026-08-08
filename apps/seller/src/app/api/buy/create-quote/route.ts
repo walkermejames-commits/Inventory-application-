@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { calculateQuote } from "@door-in-four/pricing";
 import { supabase } from "@/src/lib/server";
 import {
+  calculateDriverPayoutAmount,
   clampNumber,
   cleanAddress,
   cleanBoolean,
@@ -20,6 +21,11 @@ import { estimateRouteFromPostcodes } from "../../../../lib/geography";
 const itemSizes = ["small", "medium", "large", "furniture", "van_load"] as const;
 const urgencies = ["flexible", "scheduled", "tomorrow", "same_day", "asap"] as const;
 
+/**
+ * Buyer-led quote creation — single canonical model:
+ * pickup + delivery rows → quotes row → bookings row (quote_id linked)
+ * status starts at seller_quote_pending (open quote) with payment_status quote_created.
+ */
 export async function POST(request: Request) {
   try {
     const body = await request.json();
@@ -41,6 +47,7 @@ export async function POST(request: Request) {
     const pickupNotes = cleanNotes(body.pickupNotes);
     const buyerName = cleanName(body.buyerName) || "Buyer";
     const buyerPhone = cleanPhone(body.buyerPhone);
+    const buyerEmail = cleanEmail(body.buyerEmail);
     const deliveryAddress = cleanAddress(body.deliveryAddress);
     const deliveryNotes = cleanNotes(body.deliveryNotes);
     const preferredPickupWindow = cleanNotes(body.preferredPickupWindow);
@@ -49,7 +56,10 @@ export async function POST(request: Request) {
     const requiresVan = cleanBoolean(body.requiresVan);
 
     if (!pickupTown || !pickupPostcode || !deliveryTown || !deliveryPostcode) {
-      return NextResponse.json({ error: "Pickup and delivery town/postcode are required" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Pickup and delivery town/postcode are required" },
+        { status: 400 }
+      );
     }
 
     const route = await estimateRouteFromPostcodes(pickupPostcode, deliveryPostcode);
@@ -58,11 +68,13 @@ export async function POST(request: Request) {
       .from("pickup_contacts")
       .insert({
         seller_name: sellerName,
-        seller_phone: sellerPhone,
-        seller_email: sellerEmail,
+        seller_phone: sellerPhone || "",
+        seller_email: sellerEmail || null,
+        email: sellerEmail || null,
+        phone: sellerPhone || null,
         town: pickupTown,
         postcode: pickupPostcode,
-        address_line_1: pickupAddress,
+        address_line_1: pickupAddress || "Address to confirm",
         address_line: pickupAddress || null,
         notes: pickupNotes || null,
       })
@@ -70,33 +82,40 @@ export async function POST(request: Request) {
       .single();
 
     if (pickupError || !pickup) {
-      return NextResponse.json({ error: pickupError?.message || "Could not create pickup details" }, { status: 400 });
+      return NextResponse.json(
+        { error: pickupError?.message || "Could not create pickup details" },
+        { status: 400 }
+      );
     }
 
     const { data: delivery, error: deliveryError } = await supabase
       .from("delivery_addresses")
       .insert({
         recipient_name: buyerName,
-        recipient_phone: buyerPhone,
+        recipient_phone: buyerPhone || "",
         town: deliveryTown,
         postcode: deliveryPostcode,
-        address_line_1: deliveryAddress,
+        address_line_1: deliveryAddress || "Address to confirm",
+        address_line: deliveryAddress || null,
         notes: deliveryNotes || null,
       })
       .select("id")
       .single();
 
     if (deliveryError || !delivery) {
-      return NextResponse.json({ error: deliveryError?.message || "Could not create delivery details" }, { status: 400 });
+      return NextResponse.json(
+        { error: deliveryError?.message || "Could not create delivery details" },
+        { status: 400 }
+      );
     }
 
-    const quote = calculateQuote({
+    const quoteCalc = calculateQuote({
       routeDistanceMiles: route.distanceMiles,
       routeDurationMinutes: route.durationMinutes,
-      itemSize: itemSize as any,
+      itemSize,
       approximateWeightKg,
       quantity: 1,
-      urgency: urgency as any,
+      urgency,
       requiresVan,
       fragile,
       pickupStairsFloors,
@@ -105,9 +124,49 @@ export async function POST(request: Request) {
       sameTown: pickupTown.toLowerCase() === deliveryTown.toLowerCase(),
     });
 
+    const driverPayout = calculateDriverPayoutAmount(quoteCalc.subtotal);
+
+    // Optional buyer user link when a UUID is supplied
+    const buyerId =
+      typeof body.buyerId === "string" &&
+      /^[0-9a-f-]{36}$/i.test(body.buyerId)
+        ? body.buyerId
+        : null;
+
+    const { data: quoteRow, error: quoteError } = await supabase
+      .from("quotes")
+      .insert({
+        buyer_id: buyerId,
+        pickup_postcode: pickupPostcode,
+        delivery_postcode: deliveryPostcode,
+        route_distance_miles: route.distanceMiles,
+        route_duration_minutes: route.durationMinutes,
+        item_summary: `${itemTitle} (${itemSize})`,
+        quote_breakdown: quoteCalc,
+        subtotal: quoteCalc.subtotal,
+        platform_fee: quoteCalc.platformServiceFee,
+        total_price: quoteCalc.totalBuyerPrice,
+        driver_payout_estimate: driverPayout,
+        expires_at: new Date(
+          Date.now() + quoteCalc.quoteExpiryMinutes * 60_000
+        ).toISOString(),
+        status: "quote_created",
+      })
+      .select("id")
+      .single();
+
+    if (quoteError || !quoteRow) {
+      return NextResponse.json(
+        { error: quoteError?.message || "Could not create quote" },
+        { status: 400 }
+      );
+    }
+
     const { data: booking, error: bookingError } = await supabase
       .from("bookings")
       .insert({
+        quote_id: quoteRow.id,
+        buyer_id: buyerId,
         pickup_contact_id: pickup.id,
         delivery_address_id: delivery.id,
         status: "seller_quote_pending",
@@ -119,9 +178,10 @@ export async function POST(request: Request) {
         requires_two_people: requiresTwoPeople,
         requires_van: requiresVan,
         preferred_pickup_window: preferredPickupWindow || null,
-        delivery_quote_amount: quote.totalBuyerPrice,
-        driver_payout_amount: quote.driverPayoutEstimate,
-        platform_fee_amount: quote.platformServiceFee,
+        accepted_price: quoteCalc.totalBuyerPrice,
+        delivery_quote_amount: quoteCalc.totalBuyerPrice,
+        driver_payout_amount: driverPayout,
+        platform_fee_amount: quoteCalc.platformServiceFee,
         seller_flow_type: "buyer_led",
         pickup_latitude: route.pickupLat,
         pickup_longitude: route.pickupLng,
@@ -135,13 +195,30 @@ export async function POST(request: Request) {
       .single();
 
     if (bookingError || !booking) {
-      return NextResponse.json({ error: bookingError?.message || "Could not create booking" }, { status: 400 });
+      return NextResponse.json(
+        { error: bookingError?.message || "Could not create booking" },
+        { status: 400 }
+      );
     }
+
+    await supabase.from("status_events").insert({
+      booking_id: booking.id,
+      new_status: "seller_quote_pending",
+      actor_role: "buyer",
+      actor_user_id: buyerId,
+      note: "Buyer-led quote created",
+      metadata: {
+        quote_id: quoteRow.id,
+        buyer_email: buyerEmail || null,
+      },
+    });
 
     return NextResponse.json({
       success: true,
       bookingId: booking.id,
-      quoteAmount: quote.totalBuyerPrice,
+      quoteId: quoteRow.id,
+      quoteAmount: quoteCalc.totalBuyerPrice,
+      driverPayoutEstimate: driverPayout,
       route,
       redirectTo: `/quote/${booking.id}`,
     });

@@ -1,10 +1,8 @@
 {
   "extends": "../../tsconfig.base.json",
-  "include": [
-    "src",
-    "tests"
-  ],
+  "include": ["src", "tests"],
   "compilerOptions": {
-    "composite": true
+    "noEmit": true,
+    "composite": false
   }
 }

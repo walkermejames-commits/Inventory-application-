@@ -1,4 +1,9 @@
-import type { ItemSize, Urgency } from "@door-in-four/types";
+import {
+  DRIVER_PAYOUT_RATIO,
+  PLATFORM_SERVICE_FEE_RATIO,
+  type ItemSize,
+  type Urgency,
+} from "@door-in-four/types";
 
 export interface QuoteInput {
   routeDistanceMiles: number;
@@ -34,16 +39,42 @@ export interface QuoteResult {
   driverPayoutEstimate: number;
   platformMarginEstimate: number;
   quoteExpiryMinutes: number;
+  driverPayoutRatio: number;
   breakdown: string[];
 }
 
-const baseFeeMap: Record<ItemSize, number> = { small: 7, medium: 11, large: 18, furniture: 28, van_load: 38 };
-const distanceRateMap: Record<ItemSize, number> = { small: 1.1, medium: 1.45, large: 2.1, furniture: 2.75, van_load: 3.25 };
-const itemMultiplierMap: Record<ItemSize, number> = { small: 1, medium: 1.12, large: 1.35, furniture: 1.65, van_load: 2.25 };
-const urgencyMap: Record<Urgency, number> = { flexible: 0.9, scheduled: 1, tomorrow: 1.05, same_day: 1.15, asap: 1.25 };
+const baseFeeMap: Record<ItemSize, number> = {
+  small: 7,
+  medium: 11,
+  large: 18,
+  furniture: 28,
+  van_load: 38,
+};
+const distanceRateMap: Record<ItemSize, number> = {
+  small: 1.1,
+  medium: 1.45,
+  large: 2.1,
+  furniture: 2.75,
+  van_load: 3.25,
+};
+const itemMultiplierMap: Record<ItemSize, number> = {
+  small: 1,
+  medium: 1.12,
+  large: 1.35,
+  furniture: 1.65,
+  van_load: 2.25,
+};
+const urgencyMap: Record<Urgency, number> = {
+  flexible: 0.9,
+  scheduled: 1,
+  tomorrow: 1.05,
+  same_day: 1.15,
+  asap: 1.25,
+};
 
 const round = (n: number) => Math.round(n * 100) / 100;
-const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
+const clamp = (value: number, min: number, max: number) =>
+  Math.max(min, Math.min(max, value));
 
 export function calculateQuote(input: QuoteInput): QuoteResult {
   const pickupStairs = clamp(input.pickupStairsFloors, 0, 4);
@@ -56,7 +87,8 @@ export function calculateQuote(input: QuoteInput): QuoteResult {
   const itemSizeFee = (baseFee + distanceFee) * (itemMultiplierMap[input.itemSize] - 1);
   const urgencyFee = (baseFee + distanceFee + itemSizeFee) * (urgencyMap[input.urgency] - 1);
   const vanSurcharge = input.requiresVan ? 10 : 0;
-  const heavyItemSurcharge = input.approximateWeightKg > 50 ? 18 : input.approximateWeightKg > 25 ? 8 : 0;
+  const heavyItemSurcharge =
+    input.approximateWeightKg > 50 ? 18 : input.approximateWeightKg > 25 ? 8 : 0;
   const stairsSurcharge = totalStairs * 3;
   const fragileItemSurcharge = input.fragile ? 5 : 0;
   const twoPersonSurcharge = input.requiresTwoPeople ? 25 : 0;
@@ -91,10 +123,10 @@ export function calculateQuote(input: QuoteInput): QuoteResult {
             : 55;
   subtotal = Math.max(subtotal, minimum);
 
-  const platformServiceFee = Math.max(1.5, subtotal * 0.1);
+  const platformServiceFee = Math.max(1.5, subtotal * PLATFORM_SERVICE_FEE_RATIO);
   const vat = 0;
   const totalBuyerPrice = subtotal + platformServiceFee + vat;
-  const driverPayoutEstimate = subtotal * 0.78;
+  const driverPayoutEstimate = subtotal * DRIVER_PAYOUT_RATIO;
   const platformMarginEstimate = totalBuyerPrice - driverPayoutEstimate;
 
   return {
@@ -115,12 +147,15 @@ export function calculateQuote(input: QuoteInput): QuoteResult {
     driverPayoutEstimate: round(driverPayoutEstimate),
     platformMarginEstimate: round(platformMarginEstimate),
     quoteExpiryMinutes: 20,
+    driverPayoutRatio: DRIVER_PAYOUT_RATIO,
     breakdown: [
       `Base fee £${round(baseFee)}`,
       `Distance fee £${round(distanceFee)}`,
       `Stairs/access fee £${round(stairsSurcharge)}`,
       `Platform fee £${round(platformServiceFee)}`,
-      `Total £${round(totalBuyerPrice)}`
-    ]
+      `Total £${round(totalBuyerPrice)}`,
+    ],
   };
 }
+
+export { DRIVER_PAYOUT_RATIO, PLATFORM_SERVICE_FEE_RATIO };

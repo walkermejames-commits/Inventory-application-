@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { supabase } from "@/lib/server";
 import { verifyCode } from "@/lib/security";
 import { isStatusTransitionAllowed } from "@door-in-four/shared";
+import type { BookingStatus } from "@door-in-four/types";
+import { gateMobileApi, isNextResponse } from "@/lib/auth";
 
 type RouteContext = {
   params: Promise<{ bookingId: string }>;
@@ -11,6 +13,9 @@ export async function POST(request: Request, context: RouteContext) {
   const { bookingId } = await context.params;
   const { driverId, toStatus, sellerCode, buyerCode, photoPath } = await request.json();
 
+  const auth = gateMobileApi(request, { expectedDriverId: driverId });
+  if (isNextResponse(auth)) return auth;
+
   const { data: booking } = await supabase
     .from("bookings")
     .select("*")
@@ -19,7 +24,9 @@ export async function POST(request: Request, context: RouteContext) {
 
   if (!booking) return NextResponse.json({ error: "Booking not found" }, { status: 404 });
   if (booking.driver_id !== driverId) return NextResponse.json({ error: "Not your booking" }, { status: 403 });
-  if (!isStatusTransitionAllowed(booking.status, toStatus)) return NextResponse.json({ error: "Invalid transition" }, { status: 400 });
+  if (!isStatusTransitionAllowed(booking.status as BookingStatus, toStatus as BookingStatus)) {
+    return NextResponse.json({ error: "Invalid transition" }, { status: 400 });
+  }
 
   if (toStatus === "pickup_verified") {
     if (!verifyCode(sellerCode || "", booking.seller_handover_code_hash) || !photoPath) {

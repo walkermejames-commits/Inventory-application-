@@ -1,14 +1,22 @@
 import { NextResponse } from "next/server";
-import { stripe, supabase } from "@/lib/server";
 import { computeCancellationFee } from "@door-in-four/shared";
+import type { BookingStatus } from "@door-in-four/types";
+import { stripe, supabase } from "@/lib/server";
+import { gateAdminApi, isNextResponse } from "@/lib/auth";
 
 type RouteContext = {
   params: Promise<{ paymentId: string }>;
 };
 
 export async function POST(request: Request, context: RouteContext) {
+  const auth = gateAdminApi(request);
+  if (isNextResponse(auth)) return auth;
+
   const { paymentId } = await context.params;
-  const { amount, reason, actorUserId } = await request.json();
+  const body = await request.json();
+  const amount = body.amount;
+  const reason = body.reason;
+  const actorUserId = auth.actorUserId || body.actorUserId || null;
 
   const { data: payment } = await supabase
     .from("payments")
@@ -18,14 +26,15 @@ export async function POST(request: Request, context: RouteContext) {
 
   if (!payment) return NextResponse.json({ error: "Payment not found" }, { status: 404 });
 
-  const cancellationFee = computeCancellationFee(payment.bookings.status, Number(payment.amount));
+  const bookingStatus = (payment.bookings?.status || "completed") as BookingStatus;
+  const cancellationFee = computeCancellationFee(bookingStatus, Number(payment.amount));
   const maxRefund = Math.max(0, Number(payment.amount) - cancellationFee);
   const refundAmount = Math.min(amount ?? maxRefund, maxRefund);
 
   const refund = await stripe.refunds.create({
     payment_intent: payment.stripe_payment_intent_id,
     amount: Math.round(refundAmount * 100),
-    reason: "requested_by_customer"
+    reason: "requested_by_customer",
   });
 
   await supabase.from("refunds").insert({
@@ -33,12 +42,14 @@ export async function POST(request: Request, context: RouteContext) {
     stripe_refund_id: refund.id,
     amount: refundAmount,
     reason: `${reason ?? "admin_refund"}; cancellation_fee=${cancellationFee}`,
-    status: refund.status
+    status: refund.status,
   });
 
   await supabase
     .from("payments")
-    .update({ status: refundAmount < payment.amount ? "partially_refunded" : "refunded" })
+    .update({
+      status: refundAmount < payment.amount ? "partially_refunded" : "refunded",
+    })
     .eq("id", paymentId);
 
   await supabase.from("audit_events").insert({
@@ -50,8 +61,9 @@ export async function POST(request: Request, context: RouteContext) {
     metadata: {
       refund_id: refund.id,
       refund_amount: refundAmount,
-      cancellation_fee: cancellationFee
-    }
+      cancellation_fee: cancellationFee,
+      authMode: auth.mode,
+    },
   });
 
   return NextResponse.json({ refundId: refund.id, refundAmount, cancellationFee });

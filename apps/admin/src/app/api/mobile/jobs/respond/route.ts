@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/server";
+import { gateMobileApi, isNextResponse } from "@/lib/auth";
 
 export async function POST(request: Request) {
   try {
@@ -11,6 +12,10 @@ export async function POST(request: Request) {
     if (!bookingId || !driverId || !response) {
       return NextResponse.json({ error: "bookingId, driverId and response are required" }, { status: 400 });
     }
+
+    const auth = gateMobileApi(request, { expectedDriverId: driverId });
+    if (isNextResponse(auth)) return auth;
+
 
     const { data: booking, error: lookupError } = await supabase
       .from("bookings")

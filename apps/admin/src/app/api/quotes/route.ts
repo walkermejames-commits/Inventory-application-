@@ -2,8 +2,12 @@ import { calculateQuote } from "@door-in-four/pricing";
 import { quoteRequestSchema } from "@door-in-four/shared";
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/server";
+import { gateAdminApi, isNextResponse } from "@/lib/auth";
 
 export async function POST(request: Request) {
+  const auth = gateAdminApi(request);
+  if (isNextResponse(auth)) return auth;
+
   const parsed = quoteRequestSchema.parse(await request.json());
   const quote = calculateQuote({
     routeDistanceMiles: parsed.routeDistanceMiles,
@@ -17,7 +21,7 @@ export async function POST(request: Request) {
     pickupStairsFloors: parsed.pickupStairsFloors,
     deliveryStairsFloors: parsed.deliveryStairsFloors,
     requiresTwoPeople: parsed.requiresTwoPeople,
-    sameTown: parsed.pickupTown === parsed.deliveryTown
+    sameTown: parsed.pickupTown === parsed.deliveryTown,
   });
 
   const { data, error } = await supabase
@@ -35,7 +39,7 @@ export async function POST(request: Request) {
       total_price: quote.totalBuyerPrice,
       driver_payout_estimate: quote.driverPayoutEstimate,
       expires_at: new Date(Date.now() + quote.quoteExpiryMinutes * 60_000).toISOString(),
-      status: "quote_created"
+      status: "quote_created",
     })
     .select("*")
     .single();

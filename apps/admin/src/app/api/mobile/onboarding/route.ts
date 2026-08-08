@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/server";
+import { gateMobileApi, isNextResponse } from "@/lib/auth";
 
 const requiredDocumentTypes = [
   "driving_licence_front",
@@ -15,6 +16,9 @@ const asString = (value: unknown) => typeof value === "string" ? value.trim() : 
 
 export async function POST(request: Request) {
   try {
+    const auth = gateMobileApi(request);
+    if (isNextResponse(auth)) return auth;
+
     const body = await request.json();
 
     const fullName = asString(body.fullName);
