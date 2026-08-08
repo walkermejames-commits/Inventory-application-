@@ -177,8 +177,9 @@ Coverage includes: admin auth required, driver identity, lifecycle skips, proof 
 6. **Proof upload** requires Storage bucket + service role; without bucket, verification cannot complete.
 7. **Seller booking IDOR** on GET/PATCH/checkout: **fixed** — access token required (buyer or seller hash).
 8. **Payout after completed**: dedicated `POST /api/payouts/:id/reconcile` (admin) — idempotent recovery without weakening driver lifecycle.
-9. **Checkout sessions**: payment row pre-persist + session id storage + reuse of `open` sessions (migration **007**).
+9. **Checkout sessions**: payment row pre-persist + session id storage + reuse of `open` sessions (migration **007**). Recovery after Stripe create + failed session-id write keeps the **same** `checkout_attempt` / Idempotency-Key (does not bump attempt merely because session id is null).
 10. **Access tokens in query strings** (quote/checkout/track URLs): residual risk if URLs are logged or shared; avoid logging full URLs server-side; prefer short-lived tokens post-pilot.
+11. **Migration 007 preflight**: aborts if `payouts` has duplicate `booking_id` rows before creating the unique index.
 
 ---
 

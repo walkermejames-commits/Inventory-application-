@@ -2,9 +2,10 @@ import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import {
   checkoutSessionIdempotencyKey,
-  nextCheckoutAttempt,
   planPaymentRowForCheckout,
+  resolveCheckoutAttempt,
   shouldReuseCheckoutSession,
+  type ExistingSessionDisposition,
 } from "@door-in-four/shared";
 import { supabase } from "@/src/lib/server";
 import {
@@ -21,16 +22,13 @@ const getMoneyValue = (value: unknown): number | null => {
 /**
  * Create or reuse a Stripe Checkout Session for a booking.
  *
- * Flow (minimises orphan sessions):
- * 1. Authorise buyer token
- * 2. Upsert payments row as payment_pending (local state first)
- * 3. Reuse open Checkout Session when present
- * 4. Otherwise create session with Stripe Idempotency-Key
- * 5. Persist session id on payments row
+ * Recovery contract (Stripe create success → DB session-id write failure):
+ * - payment.checkout_attempt is already reserved
+ * - stripe_checkout_session_id may still be null
+ * - retry MUST use the SAME attempt → same Stripe Idempotency-Key
+ * - Stripe returns the original session; we then persist its id
  *
- * Token note: success/cancel URLs still carry the access token in the query string
- * so the track/checkout pages can re-auth. Prefer short-lived tokens later; avoid
- * logging full request URLs that include ?token= in production.
+ * Advance attempt only when a stored session is expired/complete/missing, or amount changes.
  */
 export async function POST(request: Request) {
   try {
@@ -59,7 +57,6 @@ export async function POST(request: Request) {
       );
     }
 
-    // Never log the raw access token
     const { data: booking, error } = await supabase
       .from("bookings")
       .select(
@@ -138,42 +135,66 @@ export async function POST(request: Request) {
 
     const { data: existingPayment } = await supabase
       .from("payments")
-      .select(
-        "id,status,stripe_checkout_session_id,checkout_attempt,amount"
-      )
+      .select("id,status,stripe_checkout_session_id,checkout_attempt,amount")
       .eq("booking_id", booking.id)
       .maybeSingle();
 
-    // --- Reuse open session when possible ---
+    let sessionDisposition: ExistingSessionDisposition = "none";
+    let reusableSession: Stripe.Checkout.Session | null = null;
+
     if (existingPayment?.stripe_checkout_session_id) {
       try {
         const existingSession = await stripe.checkout.sessions.retrieve(
           existingPayment.stripe_checkout_session_id
         );
         if (shouldReuseCheckoutSession(existingSession)) {
-          return NextResponse.json({
-            sessionId: existingSession.id,
-            bookingId: booking.id,
-            reused: true,
-          });
+          sessionDisposition = "open";
+          reusableSession = existingSession;
+        } else if (existingSession.status === "complete") {
+          sessionDisposition = "complete";
+        } else if (existingSession.status === "expired") {
+          sessionDisposition = "expired";
+        } else {
+          sessionDisposition = "unknown";
         }
       } catch {
-        // Session missing in Stripe — fall through to create a new one
+        sessionDisposition = "missing";
       }
     }
 
-    const attempt = nextCheckoutAttempt({
-      existingCheckoutSessionId: existingPayment?.stripe_checkout_session_id,
-      existingSessionReusable: false,
+    const amountChanged =
+      existingPayment?.amount != null &&
+      Number(existingPayment.amount) > 0 &&
+      Math.round(Number(existingPayment.amount) * 100) !== amountPence;
+
+    const decision = resolveCheckoutAttempt({
       previousAttempt: existingPayment?.checkout_attempt ?? null,
+      existingCheckoutSessionId: existingPayment?.stripe_checkout_session_id,
+      sessionDisposition,
+      amountChanged,
     });
 
-    // --- Persist local payment intent BEFORE creating Stripe session ---
+    if (!decision.shouldCreateSession && reusableSession) {
+      return NextResponse.json({
+        sessionId: reusableSession.id,
+        bookingId: booking.id,
+        reused: true,
+        attempt: decision.attempt,
+        reason: decision.reason,
+      });
+    }
+
+    // Reserve / keep attempt BEFORE Stripe create (stable key for recovery)
     const preRow = planPaymentRowForCheckout({
       bookingId: booking.id,
       amount: totalPrice,
-      checkoutAttempt: attempt,
-      stripeCheckoutSessionId: existingPayment?.stripe_checkout_session_id ?? null,
+      checkoutAttempt: decision.attempt,
+      // Keep existing session id if any (do not clear on terminal advance until new session succeeds)
+      stripeCheckoutSessionId:
+        decision.reason === "advance_after_terminal_session" ||
+        decision.reason === "advance_after_amount_change"
+          ? null
+          : existingPayment?.stripe_checkout_session_id ?? null,
     });
 
     const { error: prePersistError } = await supabase.from("payments").upsert(
@@ -183,6 +204,11 @@ export async function POST(request: Request) {
         currency: preRow.currency,
         status: preRow.status,
         checkout_attempt: preRow.checkout_attempt,
+        ...(preRow.stripe_checkout_session_id === null &&
+        (decision.reason === "advance_after_terminal_session" ||
+          decision.reason === "advance_after_amount_change")
+          ? { stripe_checkout_session_id: null }
+          : {}),
       },
       { onConflict: "booking_id" }
     );
@@ -203,12 +229,11 @@ export async function POST(request: Request) {
 
     const pickupTown = pickup?.town || quote?.pickup_town || "pickup";
     const deliveryTown = delivery?.town || quote?.delivery_town || "delivery";
-    // Token in success/cancel URLs — residual logging risk; do not log full URLs server-side
     const tokenQ = encodeURIComponent(token);
     const idempotencyKey = checkoutSessionIdempotencyKey({
       bookingId: booking.id,
       amountPence,
-      attempt,
+      attempt: decision.attempt,
     });
 
     const session = await stripe.checkout.sessions.create(
@@ -234,7 +259,7 @@ export async function POST(request: Request) {
           booking_id: booking.id,
           quote_id: booking.quote_id || "",
           source: "seller_checkout",
-          checkout_attempt: String(attempt),
+          checkout_attempt: String(decision.attempt),
         },
       },
       { idempotencyKey }
@@ -243,7 +268,7 @@ export async function POST(request: Request) {
     const postRow = planPaymentRowForCheckout({
       bookingId: booking.id,
       amount: totalPrice,
-      checkoutAttempt: attempt,
+      checkoutAttempt: decision.attempt,
       stripeCheckoutSessionId: session.id,
     });
 
@@ -260,7 +285,8 @@ export async function POST(request: Request) {
     );
 
     if (postPersistError) {
-      // Deterministic recovery: session exists; client can retry checkout and we will reuse open session once row is fixed
+      // Session exists at Stripe under idempotencyKey for this attempt.
+      // Retry will keep the same attempt (same_attempt_recovery) and the same key.
       return NextResponse.json(
         {
           error: `Stripe session created but payment row update failed: ${postPersistError.message}`,
@@ -268,7 +294,9 @@ export async function POST(request: Request) {
           recovery: {
             sessionId: session.id,
             bookingId: booking.id,
-            hint: "Retry POST /api/checkout with the same booking token; open sessions are reused once the session id is persisted.",
+            attempt: decision.attempt,
+            idempotencyKey,
+            hint: "Retry POST /api/checkout with the same booking token and amount. The same Stripe Idempotency-Key will recover this session; session id will then be persisted.",
           },
         },
         { status: 500 }
@@ -279,12 +307,12 @@ export async function POST(request: Request) {
       sessionId: session.id,
       bookingId: booking.id,
       reused: false,
-      attempt,
+      attempt: decision.attempt,
+      reason: decision.reason,
     });
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Failed to create checkout session";
-    // Avoid logging tokens — message only
     console.error("Seller Stripe Checkout Error:", message);
     return NextResponse.json({ error: message }, { status: 500 });
   }

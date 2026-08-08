@@ -7,7 +7,9 @@ import {
   checkoutSessionIdempotencyKey,
   nextCheckoutAttempt,
   planPaymentRowForCheckout,
+  resolveCheckoutAttempt,
   shouldReuseCheckoutSession,
+  simulatePartialCheckoutRecoveryKeys,
 } from "./src/checkout-idempotency";
 
 describe("payout reconciliation after completed (recovery)", () => {
@@ -80,7 +82,6 @@ describe("payout reconciliation after completed (recovery)", () => {
       expect(plan2.steps).toHaveLength(0);
     }
 
-    // Applying empty steps must not add another payout
     const again = applyPayoutStepsInMemory(mid, [], "b1");
     expect(again.payouts).toHaveLength(1);
   });
@@ -138,29 +139,116 @@ describe("checkout session idempotency", () => {
     expect(a).not.toBe(c);
   });
 
-  it("increments attempt when prior session cannot be reused", () => {
+  it("partial failure: Stripe create success then DB session-id write fails → retry SAME key", () => {
+    // 1) pre-persist succeeds with attempt 1, no session id yet
+    // 2) Stripe create succeeds with key ...-a1
+    // 3) post-persist of session id fails
+    // 4) client retries — must NOT bump attempt
+    const sim = simulatePartialCheckoutRecoveryKeys({
+      bookingId: "booking-uuid-1",
+      amountPence: 9200,
+    });
+
+    expect(sim.attemptOnRetry).toBe(1);
+    expect(sim.keysMatch).toBe(true);
+    expect(sim.firstKey).toBe(sim.retryKey);
+    expect(sim.firstKey).toBe(
+      "dif-checkout-booking-uuid-1-9200-a1"
+    );
+
+    // Explicit state machine check for the recovery shape
+    const afterPartial = resolveCheckoutAttempt({
+      previousAttempt: 1,
+      existingCheckoutSessionId: null,
+      sessionDisposition: "none",
+    });
+    expect(afterPartial.reason).toBe("same_attempt_recovery");
+    expect(afterPartial.attempt).toBe(1);
+    expect(afterPartial.shouldCreateSession).toBe(true);
+
+    // Old buggy helper used to return 2 here — document the fix via nextCheckoutAttempt
     expect(
       nextCheckoutAttempt({
         existingCheckoutSessionId: null,
         existingSessionReusable: false,
-      })
-    ).toBe(1);
-
-    expect(
-      nextCheckoutAttempt({
-        existingCheckoutSessionId: "cs_old",
-        existingSessionReusable: false,
         previousAttempt: 1,
       })
-    ).toBe(2);
+    ).toBe(1);
+  });
+
+  it("does not create a second logical session attempt on recovery (no key divergence)", () => {
+    const bookingId = "b-recovery";
+    const amountPence = 1500;
+
+    const keys = new Set<string>();
+    // First create
+    let attempt = resolveCheckoutAttempt({
+      previousAttempt: 0,
+      existingCheckoutSessionId: null,
+      sessionDisposition: "none",
+    }).attempt;
+    keys.add(checkoutSessionIdempotencyKey({ bookingId, amountPence, attempt }));
+
+    // Three retries with attempt reserved, session id still null (DB write never landed)
+    for (let i = 0; i < 3; i += 1) {
+      attempt = resolveCheckoutAttempt({
+        previousAttempt: attempt,
+        existingCheckoutSessionId: null,
+        sessionDisposition: "none",
+      }).attempt;
+      keys.add(checkoutSessionIdempotencyKey({ bookingId, amountPence, attempt }));
+    }
+
+    expect(keys.size).toBe(1);
+  });
+
+  it("advances attempt only when prior session is terminal (expired/complete/missing)", () => {
+    expect(
+      resolveCheckoutAttempt({
+        previousAttempt: 1,
+        existingCheckoutSessionId: "cs_old",
+        sessionDisposition: "expired",
+      })
+    ).toMatchObject({ attempt: 2, reason: "advance_after_terminal_session" });
 
     expect(
-      nextCheckoutAttempt({
-        existingCheckoutSessionId: "cs_open",
-        existingSessionReusable: true,
-        previousAttempt: 3,
+      resolveCheckoutAttempt({
+        previousAttempt: 1,
+        existingCheckoutSessionId: "cs_done",
+        sessionDisposition: "complete",
       })
-    ).toBe(3);
+    ).toMatchObject({ attempt: 2, reason: "advance_after_terminal_session" });
+
+    expect(
+      resolveCheckoutAttempt({
+        previousAttempt: 2,
+        existingCheckoutSessionId: "cs_gone",
+        sessionDisposition: "missing",
+      })
+    ).toMatchObject({ attempt: 3, reason: "advance_after_terminal_session" });
+  });
+
+  it("keeps open-session reuse without creating", () => {
+    const d = resolveCheckoutAttempt({
+      previousAttempt: 2,
+      existingCheckoutSessionId: "cs_open",
+      sessionDisposition: "open",
+    });
+    expect(d.shouldCreateSession).toBe(false);
+    expect(d.reason).toBe("reuse_open_session");
+    expect(d.attempt).toBe(2);
+  });
+
+  it("advances attempt when amount changes", () => {
+    const d = resolveCheckoutAttempt({
+      previousAttempt: 1,
+      existingCheckoutSessionId: "cs_open",
+      sessionDisposition: "open",
+      amountChanged: true,
+    });
+    expect(d.attempt).toBe(2);
+    expect(d.reason).toBe("advance_after_amount_change");
+    expect(d.shouldCreateSession).toBe(true);
   });
 
   it("plans payment row for pre/post Stripe persist", () => {
@@ -179,5 +267,7 @@ describe("checkout session idempotency", () => {
       stripeCheckoutSessionId: "cs_test",
     });
     expect(post.stripe_checkout_session_id).toBe("cs_test");
+    // Same attempt after partial failure recovery
+    expect(post.checkout_attempt).toBe(1);
   });
 });
